@@ -19,7 +19,7 @@ if [[ -f ".pio/build/debug/firmware.bin" ]]; then
 elif [[ -f ".pio/build/debug/firmware.hex" ]]; then
   cp ".pio/build/debug/firmware.hex" "./build/debug.hex"
 else 
-  echo "Debug Build not found bin .pio/build/debug"
+  echo "Debug Build not found in .pio/build/debug"
 fi 
 
 echo "Building release Version..."
