@@ -29,7 +29,7 @@ if [[ -f ".pio/build/release/firmware.bin" ]]; then
 elif [[ -f ".pio/build/release/firmware.hex" ]]; then
   cp ".pio/build/release/firmware.hex" "./build/release.hex"
 else 
-  echo "Release Build not found bin .pio/build/release"
+  echo "Release Build not found in .pio/build/release"
 fi 
 
 echo "Firmware Builds completed."
