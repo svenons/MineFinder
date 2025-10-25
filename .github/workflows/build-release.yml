@@ -1,8 +1,9 @@
 name: Build and Release
 
 on:
-  release:
-    types: [published, created, edited]
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -62,8 +63,7 @@ jobs:
         working-directory: ./minefinder-web
         run: npm run build:win
 
-      - name: Upload release assets
-        if: github.event_name == 'release'
+      - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
         with:
           files: ./minefinder-web/dist/**/*
