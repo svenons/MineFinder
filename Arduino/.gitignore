@@ -1,0 +1,9 @@
+### PlatformIO template
+.pioenvs
+.piolibdeps
+.clang_complete
+.gcc-flags.json
+.pio
+platformio_override.ini
+/build/
+/.idea/
