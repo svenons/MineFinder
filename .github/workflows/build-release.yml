@@ -1,0 +1,74 @@
+name: Build and Release
+
+on:
+  release:
+    types: [published, created, edited]
+    paths:
+      - 'minefinder-web/**'
+      - '.github/workflows/build-release.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node-version: '18'
+            artifact-name: 'minefinder-linux'
+            build-args: 'linux'
+          - os: macos-latest
+            node-version: '18'
+            artifact-name: 'minefinder-macos'
+            build-args: 'mac'
+          - os: windows-latest
+            node-version: '18'
+            artifact-name: 'minefinder-windows'
+            build-args: 'win'
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        working-directory: ./minefinder-web
+        run: npm ci
+
+      - name: Lint
+        working-directory: ./minefinder-web
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build web app
+        working-directory: ./minefinder-web
+        run: npm run build
+
+      - name: Build desktop app (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: ./minefinder-web
+        run: npm run build:linux
+
+      - name: Build desktop app (macOS)
+        if: matrix.os == 'macos-latest'
+        working-directory: ./minefinder-web
+        run: npm run build:mac
+
+      - name: Build desktop app (Windows)
+        if: matrix.os == 'windows-latest'
+        working-directory: ./minefinder-web
+        run: npm run build:win
+
+      - name: Upload release assets
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./minefinder-web/dist/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
