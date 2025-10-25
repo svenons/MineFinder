@@ -2,6 +2,12 @@
   "name": "minefinder-web",
   "private": true,
   "version": "0.0.0",
+  "description": "MineFinder - Find and map mines in a minefield, plotting a safe path through points from start to finish",
+  "author": {
+    "name": "MineFinder Team",
+    "email": "minefinder@svenons.xyz"
+  },
+  "homepage": "https://github.com/svenons/MineFinder",
   "main": "main.js",
   "type": "module",
   "scripts": {
@@ -77,7 +83,8 @@
         "deb"
       ],
       "icon": "assets/icon.png",
-      "category": "Game"
+      "category": "Game",
+      "maintainer": "MineFinder Team <contact@minefinder.dev>"
     }
   }
 }
