@@ -16,16 +16,10 @@ jobs:
         include:
           - os: ubuntu-latest
             node-version: '22'
-            artifact-name: 'minefinder-linux'
-            build-args: 'linux'
           - os: macos-latest
             node-version: '22'
-            artifact-name: 'minefinder-macos'
-            build-args: 'mac'
           - os: windows-latest
             node-version: '22'
-            artifact-name: 'minefinder-windows'
-            build-args: 'win'
 
     runs-on: ${{ matrix.os }}
 
@@ -51,24 +45,44 @@ jobs:
         working-directory: ./minefinder-web
         run: npm run build
 
-      - name: Build desktop app (Linux)
+      - name: Build desktop app
+        working-directory: ./minefinder-web
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            npm run build:linux
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            npm run build:mac
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            npm run build:win
+          fi
+        shell: bash
+
+      - name: Upload Linux artifacts
         if: matrix.os == 'ubuntu-latest'
-        working-directory: ./minefinder-web
-        run: npm run build:linux
-
-      - name: Build desktop app (macOS)
-        if: matrix.os == 'macos-latest'
-        working-directory: ./minefinder-web
-        run: npm run build:mac
-
-      - name: Build desktop app (Windows)
-        if: matrix.os == 'windows-latest'
-        working-directory: ./minefinder-web
-        run: npm run build:win
-
-      - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v1
         with:
-          files: ./minefinder-web/dist/**/*
+          files: |
+            ./minefinder-web/dist/*.AppImage
+            ./minefinder-web/dist/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS artifacts
+        if: matrix.os == 'macos-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./minefinder-web/dist/*.dmg
+            ./minefinder-web/dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows artifacts
+        if: matrix.os == 'windows-latest'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./minefinder-web/dist/*.exe
+            ./minefinder-web/dist/*.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
