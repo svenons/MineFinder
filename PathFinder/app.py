@@ -14,8 +14,9 @@ import pygame
 from events import emit
 from models import Config
 from world import World
-from ui.widgets import TextInput, Button
+from ui.widgets import TextInput, Button, Dropdown
 from controllers.wasd import WASDController
+from controllers.wasd_ml import WASDMLController
 
 # Layout/constants
 SIDEBAR_W = 280
@@ -47,10 +48,26 @@ class App:
         # Toasts
         self._toasts = []  # list of dicts: {"msg": str, "until": float}
 
-        # Controllers
-        self.controllers: List[object] = [WASDController()]
-        for c in self.controllers:
-            c.attach(self)  # type: ignore[attr-defined]
+        # Controllers registry and active controller
+        self.controller_registry = {
+            "wasd": WASDController,
+            "wasd_ml": WASDMLController,
+        }
+        self.selected_controller_id = "wasd"
+        self.active_controller = self.controller_registry[self.selected_controller_id]()
+        self.active_controller.attach(self)
+
+        # Controller settings UI state
+        self.ctrl_settings_inputs = []  # list of dicts: {"key": str, "label": str, "input": TextInput}
+        self.ctrl_apply_btn = Button(pygame.Rect(16, 330, SIDEBAR_W - 32, 30), "Apply Controller Settings", self.apply_controller_settings)
+
+        # UI: controller dropdown (position will be refined in relayout)
+        self.controller_dropdown = Dropdown(pygame.Rect(16, 260, SIDEBAR_W - 32, 30),
+                                            self.get_controller_options(),
+                                            self.selected_controller_id,
+                                            self.on_controller_selected)
+        # Build initial controller settings inputs
+        self.rebuild_controller_settings_ui()
 
         # Provide scan hook to world
         self.world.scan_func = self.scan_cell
@@ -61,11 +78,100 @@ class App:
             "height_cm": self.cfg.height_cm,
             "metres_per_cm": self.cfg.metres_per_cm,
         })
-
         # Start stdin command reader
         self._stop_reader = threading.Event()
         self._reader_thread = threading.Thread(target=self.stdin_reader, daemon=True)
         self._reader_thread.start()
+
+    # -------- Controller UI/helpers --------
+    def get_controller_options(self):
+        opts = []
+        for cid, cls in self.controller_registry.items():
+            # Avoid instantiating controllers here to prevent heavy/fragile side-effects
+            label = getattr(cls, "__name__", str(cid))
+            # Optional nicer label: strip common suffix
+            if label.endswith("Controller"):
+                label = label[:-10].strip()
+            opts.append((cid, label))
+        return opts
+
+    def on_controller_selected(self, controller_id: str):
+        if controller_id == self.selected_controller_id:
+            return
+        self.selected_controller_id = controller_id
+        cls = self.controller_registry.get(controller_id)
+        if cls is None:
+            return
+        try:
+            self.active_controller = cls()
+            self.active_controller.attach(self)
+            self.rebuild_controller_settings_ui()
+            emit("controller_changed", {"id": controller_id, "name": self.active_controller.display_name()})
+        except Exception:
+            pass
+
+    def rebuild_controller_settings_ui(self):
+        self.ctrl_settings_inputs = []
+        schema = []
+        try:
+            schema = self.active_controller.settings_schema() if self.active_controller else []  # type: ignore[attr-defined]
+        except Exception:
+            schema = []
+        # Build inputs starting below dropdown
+        y = 300
+        for field in schema:
+            key = field.get("key")
+            label = field.get("label", key)
+            ftype = field.get("type", "text")
+            placeholder = field.get("placeholder", "")
+            # Label rect is just used for drawing; input rect receives events
+            input_rect = pygame.Rect(16, y + 14, SIDEBAR_W - 32, 28)
+            ti = TextInput(input_rect, text="", numeric=(ftype == "number"), placeholder=placeholder)
+            self.ctrl_settings_inputs.append({"key": key, "label": label, "input": ti})
+            y += 56
+        # Move the apply button just after the last input (or just below dropdown if none)
+        self.ctrl_apply_btn.rect.y = y
+
+    def apply_controller_settings(self):
+        values = {}
+        # Build effective values: if input is empty/whitespace, fall back to placeholder
+        for item in self.ctrl_settings_inputs:
+            key = item.get("key")
+            ti: TextInput = item.get("input")
+            raw = (ti.get_text() or "").strip()
+            if raw == "":
+                # Use the field's placeholder as the default if provided
+                default_val = getattr(ti, 'placeholder', "")
+                values[key] = default_val
+            else:
+                values[key] = raw
+        try:
+            if self.active_controller is not None:
+                # First pass values to controller
+                self.active_controller.apply_settings(values)  # type: ignore[attr-defined]
+                # Allow the controller to perform any reinitialization based on the new settings
+                if hasattr(self.active_controller, 'on_settings_applied'):
+                    try:
+                        self.active_controller.on_settings_applied()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                # Emit event for telemetry/integration with effective values
+                emit("controller_settings_applied", {
+                    "id": self.selected_controller_id,
+                    "name": getattr(self.active_controller, 'display_name', lambda: type(self.active_controller).__name__)(),
+                    "values": values,
+                })
+                self.show_toast("Controller settings applied", duration=1.5)
+        except Exception:
+            pass
+
+    def any_input_focused(self) -> bool:
+        if self.input_width.focused or self.input_height.focused or self.input_mpc.focused:
+            return True
+        for item in self.ctrl_settings_inputs:
+            if item["input"].focused:
+                return True
+        return False
 
     # -------- Layout / scaling --------
     def relayout(self):
@@ -122,7 +228,8 @@ class App:
         """
         def worker():
             result = {}
-            for controller in getattr(self, 'controllers', []):
+            controller = getattr(self, 'active_controller', None)
+            if controller is not None:
                 try:
                     part = controller.scan_at(world, x_cm, y_cm)  # type: ignore[attr-defined]
                     if inspect.isawaitable(part):
@@ -130,7 +237,7 @@ class App:
                     if isinstance(part, dict):
                         result.update(part)
                 except Exception:
-                    continue
+                    pass
             # UI side-effect: toast when mine detected
             if result.get("mine"):
                 self.show_toast(f"Mine detected at {x_cm},{y_cm}")
@@ -215,20 +322,34 @@ class App:
         self.input_height.handle_event(e)
         self.input_mpc.handle_event(e)
         self.apply_btn.handle_event(e)
+        # Controller UI widgets
+        was_open = self.controller_dropdown.open
+        self.controller_dropdown.handle_event(e)
+        # If the dropdown was open, consume the click to avoid click-through on inputs/buttons beneath
+        if was_open:
+            return
+        # Also consume clicks directly on the dropdown area
+        if (e.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP)) and self.controller_dropdown.rect.collidepoint(e.pos):
+            return
+        for item in self.ctrl_settings_inputs:
+            item["input"].handle_event(e)
+        self.ctrl_apply_btn.handle_event(e)
 
     def handle_keydown(self, e: pygame.event.Event):
         # If any text input is focused, they handle typing themselves.
-        if self.input_width.focused or self.input_height.focused or self.input_mpc.focused:
+        if self.any_input_focused():
             self.input_width.handle_event(e)
             self.input_height.handle_event(e)
             self.input_mpc.handle_event(e)
+            for item in self.ctrl_settings_inputs:
+                item["input"].handle_event(e)
             if e.key == pygame.K_RETURN:
                 self.apply_config()
             return
 
-        # Delegate to controllers (e.g., WASDController)
-        for controller in getattr(self, 'controllers', []):
-            controller.handle_pygame_event(e)
+        # Delegate to active controller (e.g., WASDController / WASDMLController)
+        if self.active_controller is not None:
+            self.active_controller.handle_pygame_event(e)
 
     # -------- Stdin command reader --------
     def stdin_reader(self):
@@ -294,9 +415,39 @@ class App:
             " - WASD: move drone",
             "Protocol: JSONL on stdout",
         ]
+        # Controller selection
+        surf.blit(self.font_small.render("Controller", True, (60, 60, 60)), (16, 224))
+        # Draw dynamic controller settings and other UI first, then draw dropdown last for correct z-order
+        # Dynamic controller settings depend on dropdown position for layout
+        y = self.controller_dropdown.rect.bottom + 10
+        for item in self.ctrl_settings_inputs:
+            label = item.get("label", item.get("key", ""))
+            surf.blit(self.font_small.render(label, True, (60, 60, 60)), (16, y))
+            inp: TextInput = item["input"]
+            # Adjust input y to be below label
+            inp.rect.y = y + 16
+            inp.draw(surf, self.font)
+            y = inp.rect.bottom + 12
+        # Apply settings button
+        self.ctrl_apply_btn.rect.y = y
+        self.ctrl_apply_btn.draw(surf, self.font)
+
+        # Help
+        y = self.ctrl_apply_btn.rect.bottom + 16
+        help_lines = [
+            "Mouse:",
+            " - Left click: toggle mine",
+            " - Right click: set goal",
+            "Keyboard:",
+            " - WASD: move drone",
+            "Protocol: JSONL on stdout",
+        ]
         for line in help_lines:
             surf.blit(self.font_small.render(line, True, (70, 70, 70)), (16, y))
             y += 18
+
+        # Finally draw the dropdown on top so its open menu overlays other sidebar elements
+        self.controller_dropdown.draw(surf, self.font)
 
     def draw_grid(self, surf: pygame.Surface):
         # Canvas bg
@@ -371,10 +522,13 @@ class App:
             self.input_width.update(dt)
             self.input_height.update(dt)
             self.input_mpc.update(dt)
+            # Update dynamic controller inputs
+            for item in self.ctrl_settings_inputs:
+                item["input"].update(dt)
 
             # Controllers may have time-based logic
-            for controller in getattr(self, 'controllers', []):
-                controller.update(dt)
+            if self.active_controller is not None:
+                self.active_controller.update(dt)
 
             # Draw
             assert self.screen is not None

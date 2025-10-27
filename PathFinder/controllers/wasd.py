@@ -29,7 +29,7 @@ class WASDController(DroneController):
             return
         app = self.app
         # If any input widget is focused, let the UI consume typing
-        if app.input_width.focused or app.input_height.focused or app.input_mpc.focused:
+        if getattr(app, 'any_input_focused', None) and app.any_input_focused():
             return
         info = self.KEYMAP.get(e.key)
         if info is None:
