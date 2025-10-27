@@ -1,0 +1,49 @@
+@startuml MineDetectionDrone_Component
+title Drone Software Component Architecture
+
+' Define main components
+component MissionController
+component PathPlannerCore
+component SensorManager
+component FlightControllerIF
+component DataLogger
+component CommsModule
+component AttachmentManager
+
+' Define interfaces (Lollipop notation for Provided, Socket notation for Required)
+interface PathPlanning
+interface FlightControl
+interface SensorReadings
+interface MapData
+interface Communicate
+interface AttachmentControl
+
+' Establish relationships
+' 1. Mission Controller is the orchestrator
+MissionController ..> PathPlanning : requires
+MissionController ..> FlightControl : requires
+MissionController ..> Communicate : requires
+MissionController ..> AttachmentControl : requires
+
+' 2. Path Planner Core (ML)
+PathPlannerCore -up- PathPlanning : provides
+PathPlannerCore ..> SensorReadings : requires
+PathPlannerCore ..> MapData : requires
+
+' 3. Sensor Manager
+SensorManager -up- SensorReadings : provides
+
+' 4. Flight Control
+FlightControllerIF -up- FlightControl : provides
+
+' 5. Data Logger
+DataLogger -up- MapData : provides
+
+' 6. Comms Module
+CommsModule -up- Communicate : provides
+
+' 7. Attachment Manager
+AttachmentManager -up- AttachmentControl : provides
+AttachmentManager ..> FlightControl : requires (for distribution flight)
+
+@enduml

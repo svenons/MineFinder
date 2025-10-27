@@ -1,0 +1,73 @@
+@startuml
+
+title Automated Mine Scanning & Path Planning
+
+start
+
+partition "Operator / Mission Controller" {
+  :Receive Final Destination;
+  :Initialize Mission;
+  :Activate Drone Systems;
+}
+
+partition "Flight Controller" {
+  :Take Off;
+}
+
+' Use a blank activity to define the flow target
+:Scanning_Loop_Start;
+
+partition "Operator / Mission Controller" {
+  if (Destination Reached?) is (Yes)
+    -> Mission_Complete_Target; ' Direct flow to the final block target
+  else (No)
+    :Determine Next Waypoint;
+    -> Move_Check;
+  endif
+}
+
+partition "Flight Controller" {
+  ' Use a blank activity to define the waypoint check label
+  :Move_Check;
+  
+  :Move Drone to Waypoint;
+  if (Reached Waypoint?) is (No)
+    :Adjust Flight;
+    -> Move_Check;
+  endif
+}
+
+partition "Sensor Manager" {
+  :Start Scanning Sensors;
+  :Collect and Process Sensor Data;
+}
+
+partition "Path Planner (ML Model)" {
+  if (Mine Detected?) is (Yes)
+    partition "Data Logger / Comms" {
+      :Mark Mine Location (Log Coordinates);
+    }
+    :Recalculate Safest Path (Avoid Mine);
+    -> Scanning_Loop_Start;
+  else (No)
+    :Confirm Path Segment Clear;
+    -> Scanning_Loop_Start;
+  endif
+}
+
+' --- Mission Completion ---
+' Define the completion label as a blank activity to resolve syntax errors
+:Mission_Complete_Target;
+
+partition "Operator / Mission Controller" {
+  :Deactivate Drone Systems;
+}
+
+partition "Data Logger / Comms" {
+  :Compile Final Mission Data;
+  :Transmit Mission Data to Control Station;
+}
+
+stop
+
+@enduml

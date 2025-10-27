@@ -1,0 +1,37 @@
+@startuml UserStoryMap
+title Mine Detection Drone - User Story Map
+
+<style>
+wbsDiagram {
+  .r1 {
+    backgroundColor #LightGreen
+    LineColor #46A046
+  }
+  .r2 {
+    backgroundColor #LightBlue
+    LineColor #3A77A0
+  }
+  .r3 {
+    backgroundColor #LightGray
+    LineColor #808080
+  }
+}
+</style>
+
+* **Drone Mission (User Journey)**
+** **Mission Planning**
+*** As an Operator, I want to set a final destination <&r1>
+*** As an Operator, I want to initiate the autonomous scan <&r1>
+** **Autonomous Scanning**
+*** As a Drone, I need to detect mines using sensors <&r1>
+*** As a Drone, I need to mark the mine's location <&r1>
+*** As a Drone, I need to use an ML model to calculate a safe path <&r2>
+*** As a Drone, I need to re-route my path when a mine is found <&r2>
+** **Data Reporting**
+*** As a Drone, I need to send the final path data to the station <&r1>
+*** As a Control Station, I need to receive data and print a flyer <&r1>
+** **Flyer Distribution**
+*** As an Operator, I want to swap the drone's attachment to the distributor <&r3>
+*** As a Drone, I need to fly to end-users and drop navigation flyers <&r3>
+
+@enduml

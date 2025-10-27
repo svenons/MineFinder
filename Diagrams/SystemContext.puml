@@ -1,0 +1,22 @@
+@startuml SystemContext
+title Mine Detection Drone - System Context
+
+!include C4-PlantUML/C4_Container.puml
+
+Person(operator, "Drone Operator")
+Person(people, "People (End User)")
+System(control_station, "Control Station", "Hardware/Software for data processing and printing")
+System_Ext(gps, "GPS Satellite System")
+
+System_Boundary(drone_system, "Mine Detection Drone System") {
+    System(drone, "Drone Software & Hardware", "Handles flight, scanning, and ML path planning")
+}
+
+' --- Interactions ---
+BiRel(operator, drone, "Operates, Sets Destination, Receives Status")
+Rel(gps, drone, "Provides Position Data")
+Rel(drone, control_station, "Transmits Final Path & Mine Data")
+Rel(control_station, operator, "Provides Printed Flyer to")
+Rel(drone, people, "Distributes Flyer")
+
+@enduml

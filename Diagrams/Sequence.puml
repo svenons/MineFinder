@@ -1,0 +1,49 @@
+@startuml sequencediagram MineDetectionDrone_Sequence_Final
+
+actor O as Operator
+participant UI as OperatorInterface
+participant MC as MissionController
+participant PPC as PathPlannerCore <<ML Model>>
+participant SM as SensorManager
+participant FC as FlightController
+participant CM as CommsModule
+
+O->>UI: SetFinalDestination(coords)
+UI->>MC: StartMission(coords)
+
+activate MC
+MC->>PPC: InitializePath(start, goal)
+PPC-->>MC: InitialPathSegment(p1)
+
+loop While Not at Destination
+    MC->>FC: MoveTo(p1)
+    activate FC
+    FC-->>MC: ReachedWaypoint(p1)
+    deactivate FC
+
+    MC->>SM: StartSensorScanning()
+    activate SM
+    SM-->>MC: SensorData(raw_readings)
+
+    alt Mine Detected
+        MC->>PPC: UpdateMap(readings, p1)
+        PPC-->>MC: MineDetected(coords)
+        MC->>CM: LogEvent(MineFound, coords)
+
+        MC->>PPC: RecalculateSafestPath(p1, goal)
+        PPC-->>MC: NextPathSegment(p2)
+        MC->>FC: UpdateRoute(p2)
+    else No Mine Detected
+        MC->>PPC: UpdateMap(no_mine, p1)
+        PPC-->>MC: NextPathSegment(p2)
+        MC->>FC: UpdateRoute(p2)
+    end
+    
+    deactivate SM
+end
+
+MC->>CM: TransmitFinalMissionData(full_path, mine_logs)
+CM-->>O: Confirmation(Data Sent)
+deactivate MC
+
+@enduml

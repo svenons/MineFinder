@@ -1,0 +1,36 @@
+@startuml DomainModel
+title Mine Detection Drone - Domain Model
+
+' Hide software-specific details
+hide methods
+skinparam classAttributeIconSize 0
+
+' --- Concepts ---
+class Operator
+class Drone
+class Mission
+class Path
+class Waypoint
+class Mine {
+  location: Coordinates
+  confidenceScore: float
+}
+class ControlStation
+class NavigationFlyer {
+  mapImage: Image
+}
+class People as "People (End User)"
+
+' --- Relationships ---
+Operator "1" -- "1..*" Mission : "initiates"
+Mission "1" -- "1" Drone : "is assigned"
+Mission "1" -- "1" Path : "defines"
+Path "1" -- "1..*" Waypoint : "composed of"
+
+Drone ..> Mine : "detects"
+Drone ..> ControlStation : "sends data to"
+ControlStation ..> NavigationFlyer : "generates"
+Drone ..> NavigationFlyer : "distributes"
+People ..> NavigationFlyer : "receives"
+
+@enduml
