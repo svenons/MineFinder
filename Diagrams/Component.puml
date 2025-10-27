@@ -1,49 +1,70 @@
-@startuml MineDetectionDrone_Component
-title Drone Software Component Architecture
+@startuml MineDetectionDrone_Component_V1
+title Mine Detection Drone System - Component Diagram
 
-' Define main components
-component MissionController
-component PathPlannerCore
-component SensorManager
-component FlightControllerIF
-component DataLogger
-component CommsModule
-component AttachmentManager
+' --- Actors ---
+actor Operator as Op
+actor "End User" as User
 
-' Define interfaces (Lollipop notation for Provided, Socket notation for Required)
-interface PathPlanning
-interface FlightControl
-interface SensorReadings
-interface MapData
-interface Communicate
-interface AttachmentControl
+' --- Components ---
+component "Operator / Mission Controller" as MissionController {
+  [Mission Interface]
+  [Attachment Manager]
+}
 
-' Establish relationships
-' 1. Mission Controller is the orchestrator
-MissionController ..> PathPlanning : requires
-MissionController ..> FlightControl : requires
-MissionController ..> Communicate : requires
-MissionController ..> AttachmentControl : requires
+component "Flight Controller" as FlightCtrl {
+  [Navigation Module]
+  [Motor Control]
+}
 
-' 2. Path Planner Core (ML)
-PathPlannerCore -up- PathPlanning : provides
-PathPlannerCore ..> SensorReadings : requires
-PathPlannerCore ..> MapData : requires
+component "Sensor Manager" as SensorMgr {
+  [Metal Detector]
+  [Environmental Sensors]
+  [Mine Detection Algorithm]
+}
 
-' 3. Sensor Manager
-SensorManager -up- SensorReadings : provides
+component "Path Planner (ML Model)" as PathPlanner {
+  [Safe Path Calculation]
+  [Path Recalculation Logic]
+}
 
-' 4. Flight Control
-FlightControllerIF -up- FlightControl : provides
+component "Data Logger / Comms" as DataLogger {
+  [Mine Location Logging]
+  [Telemetry Transmission]
+}
 
-' 5. Data Logger
-DataLogger -up- MapData : provides
+component "Control Station" as ControlStation {
+  [Mission Data Receiver]
+  [Safe Path Flyer Generator]
+  [Mission Report Module]
+}
 
-' 6. Comms Module
-CommsModule -up- Communicate : provides
+component "Flyer Distribution Module" as FlyerModule {
+  [Flyer Delivery System]
+  [Attachment Interface]
+}
 
-' 7. Attachment Manager
-AttachmentManager -up- AttachmentControl : provides
-AttachmentManager ..> FlightControl : requires (for distribution flight)
+' --- Relationships ---
+
+Op --> MissionController : Configure Mission / Provide Destination
+MissionController --> FlightCtrl : Send Flight Commands
+MissionController --> SensorMgr : Activate / Deactivate Sensors
+SensorMgr --> PathPlanner : Send Mine Detection Data
+PathPlanner --> FlightCtrl : Send Updated Path / Waypoints
+PathPlanner --> DataLogger : Log Mine Coordinates
+DataLogger --> ControlStation : Transmit Path & Mine Data
+ControlStation --> FlyerModule : Send Generated Flyer Data
+MissionController --> FlyerModule : Switch to Flyer Mode
+FlyerModule --> User : Distribute Safe Path Flyers
+
+' --- Notes ---
+note right of PathPlanner
+  Uses ML algorithms to calculate
+  the safest path avoiding mines.
+end note
+
+note bottom of ControlStation
+  Generates flyers showing safe routes
+  and transmits them to the drone for delivery.
+end note
 
 @enduml

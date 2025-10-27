@@ -1,49 +1,60 @@
-@startuml sequencediagram MineDetectionDrone_Sequence_Final
+@startuml MineDetectionDrone_Sequence_V1
+title Mine Detection Drone - Sequence Diagram
 
-actor O as Operator
-participant UI as OperatorInterface
-participant MC as MissionController
-participant PPC as PathPlannerCore <<ML Model>>
-participant SM as SensorManager
-participant FC as FlightController
-participant CM as CommsModule
+actor Operator
+participant "Mission Controller" as MC
+participant "Flight Controller" as FC
+participant "Sensor Manager" as SM
+participant "Path Planner (ML Model)" as PP
+participant "Data Logger / Comms" as DL
+participant "Control Station" as CS
+participant "Flyer Distribution Module" as FM
+actor "End User" as EU
 
-O->>UI: SetFinalDestination(coords)
-UI->>MC: StartMission(coords)
+== Mission Initialization ==
+Operator -> MC : Provide Final Destination
+MC -> FC : Initialize and Activate Systems
+MC -> SM : Activate Sensors
+FC -> Operator : Confirm Takeoff Ready
+Operator -> FC : Command Takeoff
+FC -> MC : Drone Takeoff Confirmed
 
-activate MC
-MC->>PPC: InitializePath(start, goal)
-PPC-->>MC: InitialPathSegment(p1)
-
-loop While Not at Destination
-    MC->>FC: MoveTo(p1)
-    activate FC
-    FC-->>MC: ReachedWaypoint(p1)
-    deactivate FC
-
-    MC->>SM: StartSensorScanning()
-    activate SM
-    SM-->>MC: SensorData(raw_readings)
-
-    alt Mine Detected
-        MC->>PPC: UpdateMap(readings, p1)
-        PPC-->>MC: MineDetected(coords)
-        MC->>CM: LogEvent(MineFound, coords)
-
-        MC->>PPC: RecalculateSafestPath(p1, goal)
-        PPC-->>MC: NextPathSegment(p2)
-        MC->>FC: UpdateRoute(p2)
-    else No Mine Detected
-        MC->>PPC: UpdateMap(no_mine, p1)
-        PPC-->>MC: NextPathSegment(p2)
-        MC->>FC: UpdateRoute(p2)
-    end
-    
-    deactivate SM
+== Scanning and Detection Loop ==
+loop Scanning Loop
+  FC -> SM : Request Environmental Scan
+  SM -> SM : Scan Area (Metal Detector, Sensors)
+  
+  alt Mine Detected
+    SM -> PP : Send Mine Detection Data
+    PP -> DL : Log Mine Coordinates
+    PP -> FC : Send Updated Safe Path
+    FC -> MC : Acknowledge Path Adjustment
+  else No Mine Detected
+    SM -> PP : Confirm Path Safe
+    PP -> FC : Continue on Current Path
+  end
+  
+  FC -> MC : Report Position / Progress
 end
 
-MC->>CM: TransmitFinalMissionData(full_path, mine_logs)
-CM-->>O: Confirmation(Data Sent)
-deactivate MC
+== Destination Reached ==
+FC -> MC : Destination Reached Notification
+MC -> DL : Send Mission Summary
+DL -> CS : Transmit Safe Path and Mine Data
+
+== Flyer Generation ==
+CS -> CS : Generate Safe Path Flyer
+CS -> MC : Send Flyer Data
+
+== Flyer Distribution Phase ==
+MC -> FM : Switch to Flyer Delivery Mode
+MC -> FC : Command Drone to Start Flyer Delivery
+FC -> FM : Deploy Flyers
+FM -> EU : Deliver Flyers to End Users
+
+== Mission Complete ==
+FC -> MC : Return to Base
+MC -> Operator : Mission Completed
+Operator -> MC : Deactivate Drone Systems
 
 @enduml

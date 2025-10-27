@@ -1,71 +1,79 @@
-@startuml
-
-title Automated Mine Scanning & Path Planning
+@startuml MineDetectionDrone_Activity_V11
+title Automated Mine Detection, Path Planning & Flyer Distribution
 
 start
 
 partition "Operator / Mission Controller" {
-  :Receive Final Destination;
-  :Initialize Mission;
+  :Provide Final Destination to Drone;
+  :Initialize Mission Parameters;
   :Activate Drone Systems;
 }
 
 partition "Flight Controller" {
   :Take Off;
+  :Move Towards Initial Waypoint;
 }
 
-' Use a blank activity to define the flow target
 :Scanning_Loop_Start;
 
-partition "Operator / Mission Controller" {
-  if (Destination Reached?) is (Yes)
-    -> Mission_Complete_Target; ' Direct flow to the final block target
-  else (No)
-    :Determine Next Waypoint;
-    -> Move_Check;
-  endif
-}
-
-partition "Flight Controller" {
-  ' Use a blank activity to define the waypoint check label
-  :Move_Check;
-  
-  :Move Drone to Waypoint;
-  if (Reached Waypoint?) is (No)
-    :Adjust Flight;
-    -> Move_Check;
-  endif
-}
-
 partition "Sensor Manager" {
-  :Start Scanning Sensors;
-  :Collect and Process Sensor Data;
+  :Activate Metal Detector and Other Sensors;
+  :Scan Surrounding Area for Mines;
 }
 
 partition "Path Planner (ML Model)" {
-  if (Mine Detected?) is (Yes)
+  if (Mine Detected?) then (Yes)
     partition "Data Logger / Comms" {
-      :Mark Mine Location (Log Coordinates);
+      :Mark Mine Location on Map;
+      :Log Coordinates of Detected Mine;
     }
-    :Recalculate Safest Path (Avoid Mine);
-    -> Scanning_Loop_Start;
+    :Recalculate Safest Path Using ML Algorithm;
+    :Update Navigation Path to Avoid Mine;
+    --> Scanning_Loop_Start;
   else (No)
-    :Confirm Path Segment Clear;
-    -> Scanning_Loop_Start;
+    :Confirm Current Path is Safe;
+    :Continue Flight on Current Path;
+    --> Destination_Check;
   endif
 }
 
-' --- Mission Completion ---
-' Define the completion label as a blank activity to resolve syntax errors
-:Mission_Complete_Target;
+:Destination_Check;
+
+partition "Operator / Mission Controller" {
+  if (Destination Reached?) then (Yes)
+    --> Mission_Complete;
+  else (No)
+    :Determine Next Waypoint;
+    --> Scanning_Loop_Start;
+  endif
+}
+
+:Mission_Complete;
+
+partition "Data Logger / Comms" {
+  :Transmit Final Safe Path Data to Control Station;
+}
+
+partition "Control Station" {
+  :Receive Path Data;
+  :Generate and Print Safe Path Flyer;
+}
+
+partition "Operator / Mission Controller" {
+  :Remove Mine Detection Attachment;
+  :Attach Flyer Distribution Module;
+  :Activate Flyer Delivery Mode;
+}
+
+partition "Flight Controller" {
+  :Fly to Distribution Area;
+  :Drop Flyers to End Users;
+  :Return to Base;
+}
 
 partition "Operator / Mission Controller" {
   :Deactivate Drone Systems;
-}
-
-partition "Data Logger / Comms" {
-  :Compile Final Mission Data;
-  :Transmit Mission Data to Control Station;
+  :Mission Completed Successfully;
 }
 
 stop
