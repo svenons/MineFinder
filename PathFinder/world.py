@@ -1,7 +1,7 @@
 """
 World/grid logic: mines, goal, and drone movement.
 """
-from typing import Callable, Dict, Optional, Set, Tuple
+from typing import Callable, Dict, Optional, Set, Tuple, Any
 
 from models import Config, Drone
 from events import emit
@@ -14,6 +14,7 @@ class World:
         self.goal: Optional[Tuple[int, int]] = None
         self.drone = Drone(0, 0)
         # Optional scan hook set by App: Callable[[World, int, int], Dict]
+        # The App is responsible for emitting `drone_scan` events after scans complete.
         self.scan_func: Optional[Callable[["World", int, int], Dict]] = None
 
     def in_bounds(self, x_cm: int, y_cm: int) -> bool:
@@ -66,15 +67,9 @@ class World:
                     "y_m": ny * self.cfg.metres_per_cm,
                 }
             })
-            # Invoke scanning via App-provided hook
+            # Invoke scanning via App-provided hook (non-blocking; App will emit drone_scan)
             if self.scan_func is not None:
                 try:
-                    result = self.scan_func(self, nx, ny) or {}
+                    self.scan_func(self, nx, ny)
                 except Exception:
-                    result = {}
-                emit("drone_scan", {
-                    "x_cm": nx, "y_cm": ny,
-                    "x_m": nx * self.cfg.metres_per_cm,
-                    "y_m": ny * self.cfg.metres_per_cm,
-                    "result": result,
-                })
+                    pass

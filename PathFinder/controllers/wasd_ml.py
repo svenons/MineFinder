@@ -7,7 +7,7 @@ from controllers.base import DroneController
 from events import emit
 
 
-class WASDController(DroneController):
+class WASDMLController(DroneController):
     """Keyboard controller that moves the drone with W/A/S/D.
 
     It emits the same JSONL 'key_command' events and calls into

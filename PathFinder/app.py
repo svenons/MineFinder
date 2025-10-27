@@ -5,6 +5,8 @@ import json
 import sys
 import threading
 import time
+import asyncio
+import inspect
 from typing import List
 
 import pygame
@@ -113,22 +115,35 @@ class App:
 
     # -------- Scanning & toasts --------
     def scan_cell(self, world, x_cm: int, y_cm: int):
-        """Ask controllers for a scan result at (x_cm, y_cm) and handle UI side-effects.
-        The world calls this after the drone moves.
+        """Dispatch a (possibly slow) scan without blocking the game loop.
+        Controllers may implement `scan_at` as sync or async; results are merged
+        and emitted via a `drone_scan` event when ready. A toast is shown if a
+        mine is detected.
         """
-        result = {}
-        for controller in getattr(self, 'controllers', []):
-            # Each controller may contribute fields; later controllers can override
-            try:
-                part = controller.scan_at(world, x_cm, y_cm)  # type: ignore[attr-defined]
-                if isinstance(part, dict):
-                    result.update(part)
-            except Exception:
-                continue
-        # If any mine detected by the active controller(s), show a toast
-        if result.get("mine"):
-            self.show_toast(f"Mine detected at {x_cm},{y_cm}")
-        return result
+        def worker():
+            result = {}
+            for controller in getattr(self, 'controllers', []):
+                try:
+                    part = controller.scan_at(world, x_cm, y_cm)  # type: ignore[attr-defined]
+                    if inspect.isawaitable(part):
+                        part = asyncio.run(part)
+                    if isinstance(part, dict):
+                        result.update(part)
+                except Exception:
+                    continue
+            # UI side-effect: toast when mine detected
+            if result.get("mine"):
+                self.show_toast(f"Mine detected at {x_cm},{y_cm}")
+            # Emit scan completion
+            emit("drone_scan", {
+                "x_cm": x_cm, "y_cm": y_cm,
+                "x_m": x_cm * self.cfg.metres_per_cm,
+                "y_m": y_cm * self.cfg.metres_per_cm,
+                "result": result,
+            })
+        threading.Thread(target=worker, daemon=True).start()
+        # Return immediately to avoid blocking
+        return {}
 
     def show_toast(self, msg: str, duration: float = 2.0):
         now = time.time()

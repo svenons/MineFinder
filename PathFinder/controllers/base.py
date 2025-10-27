@@ -13,6 +13,10 @@ class DroneController:
     Controllers may also optionally implement `scan_at` which lets the drone
     query sensors after it moves to a new cell. The drone (world) invokes
     scanning; controllers must not call it themselves.
+
+    Note: `scan_at` may be either a synchronous method returning a dict,
+    or an `async def` coroutine returning a dict. The app will execute it
+    off the main thread and handle awaiting when necessary.
     """
 
     def attach(self, app: Any) -> None:
@@ -28,7 +32,7 @@ class DroneController:
         pass
 
     # Optional capability: scanning
-    def scan_at(self, world: Any, x_cm: int, y_cm: int) -> Dict[str, Any]:  # noqa: D401
+    async def scan_at(self, world: Any, x_cm: int, y_cm: int) -> Dict[str, Any]:  # noqa: D401
         """Return a dict with scan results for the cell (x_cm,y_cm).
         Implementations should be pure/side-effect-free and fast.
         Default implementation returns an empty result.
