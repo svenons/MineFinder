@@ -18,7 +18,6 @@ component "Flight Controller" as FlightCtrl {
 
 component "Sensor Manager" as SensorMgr {
   [Metal Detector]
-  [Environmental Sensors]
   [Mine Detection Algorithm]
 }
 
@@ -29,7 +28,6 @@ component "Path Planner (ML Model)" as PathPlanner {
 
 component "Data Logger / Comms" as DataLogger {
   [Mine Location Logging]
-  [Telemetry Transmission]
 }
 
 component "Control Station" as ControlStation {
