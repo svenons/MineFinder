@@ -1,0 +1,374 @@
+"""
+Main application class for the PathFinder UI.
+"""
+import json
+import sys
+import threading
+import time
+from typing import List
+
+import pygame
+
+from events import emit
+from models import Config
+from world import World
+from ui.widgets import TextInput, Button
+from controllers.wasd import WASDController
+
+# Layout/constants
+SIDEBAR_W = 280
+MAX_WIN_W = 1400
+MAX_WIN_H = 950
+MARGIN = 12
+
+
+class App:
+    def __init__(self):
+        pygame.init()
+        pygame.display.set_caption("PathFinder UI")
+        self.font = pygame.font.SysFont(None, 22)
+        self.font_small = pygame.font.SysFont(None, 18)
+
+        self.cfg = Config()
+        self.world = World(self.cfg)
+
+        # UI state
+        self.input_width = TextInput(pygame.Rect(16, 40, SIDEBAR_W - 32, 30), str(self.cfg.width_cm), numeric=True)
+        self.input_height = TextInput(pygame.Rect(16, 100, SIDEBAR_W - 32, 30), str(self.cfg.height_cm), numeric=True)
+        self.input_mpc = TextInput(pygame.Rect(16, 160, SIDEBAR_W - 32, 30), str(self.cfg.metres_per_cm), numeric=True)
+        self.apply_btn = Button(pygame.Rect(16, 210, SIDEBAR_W - 32, 34), "Apply", self.apply_config)
+
+        self.pixels_per_cm = 20  # base zoom; will be adapted to window
+        self.canvas_rect = pygame.Rect(SIDEBAR_W + MARGIN, MARGIN, 800, 600)
+        self.screen = None  # set in layout
+
+        # Toasts
+        self._toasts = []  # list of dicts: {"msg": str, "until": float}
+
+        # Controllers
+        self.controllers: List[object] = [WASDController()]
+        for c in self.controllers:
+            c.attach(self)  # type: ignore[attr-defined]
+
+        # Provide scan hook to world
+        self.world.scan_func = self.scan_cell
+
+        self.relayout()
+        emit("app_start", {
+            "width_cm": self.cfg.width_cm,
+            "height_cm": self.cfg.height_cm,
+            "metres_per_cm": self.cfg.metres_per_cm,
+        })
+
+        # Start stdin command reader
+        self._stop_reader = threading.Event()
+        self._reader_thread = threading.Thread(target=self.stdin_reader, daemon=True)
+        self._reader_thread.start()
+
+    # -------- Layout / scaling --------
+    def relayout(self):
+        # Determine an initial window size that can contain the grid at the current pixels_per_cm
+        ppc = self.pixels_per_cm
+        grid_w_px = int(self.cfg.width_cm * ppc)
+        grid_h_px = int(self.cfg.height_cm * ppc)
+        total_w = SIDEBAR_W + MARGIN + grid_w_px + MARGIN
+        total_h = MARGIN + grid_h_px + MARGIN
+
+        # Clamp to some sane maximum initial window size
+        while (total_w > MAX_WIN_W or total_h > MAX_WIN_H) and ppc > 6:
+            ppc -= 1
+            grid_w_px = int(self.cfg.width_cm * ppc)
+            grid_h_px = int(self.cfg.height_cm * ppc)
+            total_w = SIDEBAR_W + MARGIN + grid_w_px + MARGIN
+            total_h = MARGIN + grid_h_px + MARGIN
+        self.pixels_per_cm = ppc
+
+        # Create/recreate screen with resizeable flag
+        win_w = max(total_w, SIDEBAR_W + 2 * MARGIN + 400)
+        win_h = max(total_h, 300)
+        self.screen = pygame.display.set_mode((win_w, win_h), pygame.RESIZABLE)
+
+        # After window is created, adapt the grid scale to fill the available window area
+        self.update_scale_from_window(win_w, win_h)
+
+    def update_scale_from_window(self, win_w: int, win_h: int):
+        """Recompute pixels_per_cm and canvas_rect to fit the grid into the current window size.
+        Keeps square cells and preserves the aspect ratio; uses integer pixels per cm for crisp lines.
+        """
+        # Available drawing area for the grid
+        avail_w = max(1, win_w - (SIDEBAR_W + 2 * MARGIN))
+        avail_h = max(1, win_h - (2 * MARGIN))
+        # Compute the maximum integer pixels-per-cm that fits in both directions
+        if self.cfg.width_cm <= 0 or self.cfg.height_cm <= 0:
+            ppc = 1
+        else:
+            ppc_w = avail_w / self.cfg.width_cm
+            ppc_h = avail_h / self.cfg.height_cm
+            ppc = int(max(1, min(ppc_w, ppc_h)))
+        self.pixels_per_cm = ppc
+        grid_w_px = int(self.cfg.width_cm * ppc)
+        grid_h_px = int(self.cfg.height_cm * ppc)
+        # Update canvas rect anchored to the margins
+        self.canvas_rect = pygame.Rect(SIDEBAR_W + MARGIN, MARGIN, grid_w_px, grid_h_px)
+
+    # -------- Scanning & toasts --------
+    def scan_cell(self, world, x_cm: int, y_cm: int):
+        """Ask controllers for a scan result at (x_cm, y_cm) and handle UI side-effects.
+        The world calls this after the drone moves.
+        """
+        result = {}
+        for controller in getattr(self, 'controllers', []):
+            # Each controller may contribute fields; later controllers can override
+            try:
+                part = controller.scan_at(world, x_cm, y_cm)  # type: ignore[attr-defined]
+                if isinstance(part, dict):
+                    result.update(part)
+            except Exception:
+                continue
+        # If any mine detected by the active controller(s), show a toast
+        if result.get("mine"):
+            self.show_toast(f"Mine detected at {x_cm},{y_cm}")
+        return result
+
+    def show_toast(self, msg: str, duration: float = 2.0):
+        now = time.time()
+        # Keep list reasonably small
+        self._toasts = [t for t in self._toasts if t.get("until", 0) > now]
+        self._toasts.append({"msg": msg, "until": now + duration})
+        # Optional: also emit a JSONL event for telemetry
+        emit("toast", {"message": msg, "duration": duration})
+
+    def draw_toasts(self, surf: pygame.Surface):
+        # Purge expired
+        now = time.time()
+        self._toasts = [t for t in self._toasts if t.get("until", 0) > now]
+        if not self._toasts:
+            return
+        # Draw toasts stacked at top of canvas
+        x = self.canvas_rect.x + 10
+        y = self.canvas_rect.y + 10
+        pad_x, pad_y = 10, 6
+        for t in self._toasts:
+            msg = t.get("msg", "")
+            txt = self.font.render(msg, True, (20, 20, 20))
+            w = txt.get_width() + pad_x * 2
+            h = txt.get_height() + pad_y * 2
+            bg_rect = pygame.Rect(x, y, w, h)
+            s = pygame.Surface((w, h), pygame.SRCALPHA)
+            s.fill((255, 245, 180, 230))  # warm yellow
+            surf.blit(s, (bg_rect.x, bg_rect.y))
+            pygame.draw.rect(surf, (200, 160, 60), bg_rect, 1, border_radius=6)
+            surf.blit(txt, (x + pad_x, y + pad_y))
+            y += h + 8
+
+    def apply_config(self):
+        width_val = int(self.input_width.get_value(self.cfg.width_cm) or self.cfg.width_cm)
+        height_val = int(self.input_height.get_value(self.cfg.height_cm) or self.cfg.height_cm)
+        mpc_val = float(self.input_mpc.get_value(self.cfg.metres_per_cm) or self.cfg.metres_per_cm)
+        width_val = max(1, min(500, width_val))
+        height_val = max(1, min(500, height_val))
+        mpc_val = max(0.001, min(1000.0, mpc_val))
+        self.cfg.width_cm = width_val
+        self.cfg.height_cm = height_val
+        self.cfg.metres_per_cm = mpc_val
+        # Reset world that depends on cfg sizes
+        self.world = World(self.cfg)
+        # Restore scan hook
+        self.world.scan_func = self.scan_cell
+        self.relayout()
+        emit("config_update", {
+            "width_cm": self.cfg.width_cm,
+            "height_cm": self.cfg.height_cm,
+            "metres_per_cm": self.cfg.metres_per_cm,
+        })
+
+    # -------- Input helpers --------
+    def handle_mouse(self, e: pygame.event.Event):
+        if e.type == pygame.MOUSEBUTTONDOWN:
+            if self.canvas_rect.collidepoint(e.pos):
+                gx = (e.pos[0] - self.canvas_rect.x)
+                gy = (e.pos[1] - self.canvas_rect.y)
+                cx = int(gx // self.pixels_per_cm)
+                cy = int(gy // self.pixels_per_cm)
+                if e.button == 1:
+                    self.world.toggle_mine(cx, cy)
+                elif e.button == 3:
+                    self.world.set_goal(cx, cy)
+
+        # Pass to widgets
+        self.input_width.handle_event(e)
+        self.input_height.handle_event(e)
+        self.input_mpc.handle_event(e)
+        self.apply_btn.handle_event(e)
+
+    def handle_keydown(self, e: pygame.event.Event):
+        # If any text input is focused, they handle typing themselves.
+        if self.input_width.focused or self.input_height.focused or self.input_mpc.focused:
+            self.input_width.handle_event(e)
+            self.input_height.handle_event(e)
+            self.input_mpc.handle_event(e)
+            if e.key == pygame.K_RETURN:
+                self.apply_config()
+            return
+
+        # Delegate to controllers (e.g., WASDController)
+        for controller in getattr(self, 'controllers', []):
+            controller.handle_pygame_event(e)
+
+    # -------- Stdin command reader --------
+    def stdin_reader(self):
+        # Read lines from stdin; ignore errors
+        while not self._stop_reader.is_set():
+            line = sys.stdin.readline()
+            if not line:
+                # EOF or no input; sleep a bit to avoid busy loop
+                time.sleep(0.05)
+                continue
+            try:
+                obj = json.loads(line)
+            except Exception:
+                continue
+            try:
+                cmd = obj.get("cmd")
+                if cmd == "move":
+                    dir_ = obj.get("dir", "").upper()
+                    mapping = {
+                        "W": (0, -1),
+                        "A": (-1, 0),
+                        "S": (0, 1),
+                        "D": (1, 0),
+                    }
+                    if dir_ in mapping:
+                        emit("key_command", {"key": dir_})
+                        dx, dy = mapping[dir_]
+                        self.world.move_drone(dx, dy)
+                elif cmd == "set_goal":
+                    x = int(obj.get("x_cm", 0))
+                    y = int(obj.get("y_cm", 0))
+                    self.world.set_goal(x, y)
+                elif cmd == "toggle_mine":
+                    x = int(obj.get("x_cm", 0))
+                    y = int(obj.get("y_cm", 0))
+                    self.world.toggle_mine(x, y)
+            except Exception:
+                # Ignore any malformed commands
+                pass
+
+    # -------- Rendering --------
+    def draw_sidebar(self, surf: pygame.Surface):
+        # Background
+        pygame.draw.rect(surf, (245, 245, 245), pygame.Rect(0, 0, SIDEBAR_W, surf.get_height()))
+        title = self.font.render("PathFinder Controls", True, (30, 30, 30))
+        surf.blit(title, (16, 10))
+        # Labels
+        surf.blit(self.font_small.render("Width (cm)", True, (60, 60, 60)), (16, 24))
+        self.input_width.draw(surf, self.font)
+        surf.blit(self.font_small.render("Height (cm)", True, (60, 60, 60)), (16, 84))
+        self.input_height.draw(surf, self.font)
+        surf.blit(self.font_small.render("Metres per cm", True, (60, 60, 60)), (16, 144))
+        self.input_mpc.draw(surf, self.font)
+        self.apply_btn.draw(surf, self.font)
+
+        # Help
+        y = 260
+        help_lines = [
+            "Mouse:",
+            " - Left click: toggle mine",
+            " - Right click: set goal",
+            "Keyboard:",
+            " - WASD: move drone",
+            "Protocol: JSONL on stdout",
+        ]
+        for line in help_lines:
+            surf.blit(self.font_small.render(line, True, (70, 70, 70)), (16, y))
+            y += 18
+
+    def draw_grid(self, surf: pygame.Surface):
+        # Canvas bg
+        pygame.draw.rect(surf, (255, 255, 255), self.canvas_rect)
+        # Grid lines
+        ppc = self.pixels_per_cm
+        x0, y0 = self.canvas_rect.topleft
+        # Vertical lines
+        for x in range(self.cfg.width_cm + 1):
+            X = x0 + x * ppc
+            thick = (x % 10 == 0)
+            color = (180, 180, 180) if thick else (220, 220, 220)
+            pygame.draw.line(surf, color, (X, y0), (X, y0 + self.canvas_rect.height), 2 if thick else 1)
+        # Horizontal lines
+        for y in range(self.cfg.height_cm + 1):
+            Y = y0 + y * ppc
+            thick = (y % 10 == 0)
+            color = (180, 180, 180) if thick else (220, 220, 220)
+            pygame.draw.line(surf, color, (x0, Y), (x0 + self.canvas_rect.width, Y), 2 if thick else 1)
+
+        # Mines
+        for (cx, cy) in self.world.mines:
+            cell_rect = pygame.Rect(x0 + cx * ppc + 1, y0 + cy * ppc + 1, ppc - 2, ppc - 2)
+            pygame.draw.rect(surf, (200, 60, 60), cell_rect)
+
+        # Goal
+        if self.world.goal is not None:
+            gx, gy = self.world.goal
+            cx = x0 + gx * ppc
+            cy = y0 + gy * ppc
+            r = max(4, ppc // 2)
+            pygame.draw.circle(surf, (60, 160, 60), (cx + ppc // 2, cy + ppc // 2), r)
+            pygame.draw.circle(surf, (30, 120, 30), (cx + ppc // 2, cy + ppc // 2), r, 2)
+
+        # Drone
+        dx = x0 + self.world.drone.x_cm * ppc
+        dy = y0 + self.world.drone.y_cm * ppc
+        drone_rect = pygame.Rect(dx + 3, dy + 3, max(6, ppc - 6), max(6, ppc - 6))
+        pygame.draw.rect(surf, (60, 120, 200), drone_rect, border_radius=4)
+        pygame.draw.rect(surf, (30, 80, 160), drone_rect, 2, border_radius=4)
+
+        # Hover highlight
+        mx, my = pygame.mouse.get_pos()
+        if self.canvas_rect.collidepoint((mx, my)):
+            cx = int((mx - x0) // ppc)
+            cy = int((my - y0) // ppc)
+            if 0 <= cx < self.cfg.width_cm and 0 <= cy < self.cfg.height_cm:
+                hl = pygame.Rect(x0 + cx * ppc + 1, y0 + cy * ppc + 1, ppc - 2, ppc - 2)
+                s = pygame.Surface((hl.width, hl.height), pygame.SRCALPHA)
+                s.fill((100, 100, 100, 40))
+                surf.blit(s, (hl.x, hl.y))
+
+    # -------- Main loop --------
+    def run(self):
+        clock = pygame.time.Clock()
+        running = True
+        while running:
+            dt = clock.tick(60) / 1000.0
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT:
+                    running = False
+                elif e.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP):
+                    self.handle_mouse(e)
+                elif e.type == pygame.KEYDOWN:
+                    self.handle_keydown(e)
+                elif e.type == pygame.VIDEORESIZE:
+                    # Recreate window to new size and rescale grid to fit available area
+                    self.screen = pygame.display.set_mode((e.w, e.h), pygame.RESIZABLE)
+                    self.update_scale_from_window(e.w, e.h)
+
+            # Update widgets
+            self.input_width.update(dt)
+            self.input_height.update(dt)
+            self.input_mpc.update(dt)
+
+            # Controllers may have time-based logic
+            for controller in getattr(self, 'controllers', []):
+                controller.update(dt)
+
+            # Draw
+            assert self.screen is not None
+            self.screen.fill((230, 230, 235))
+            self.draw_sidebar(self.screen)
+            self.draw_grid(self.screen)
+            self.draw_toasts(self.screen)
+
+            pygame.display.flip()
+
+        self._stop_reader.set()
+        pygame.quit()
