@@ -23,7 +23,7 @@ LandmineDetector = exp_ml_main.LandmineDetector
 
 
 MINE_IMG_DIR = "EXP_T-ML-LWIR/data/03_03_2020/JPG/Zone 2 Mine 1cm depth"
-NO_MINE_IMG_DIR = "EXP_T-ML-LWIR/data/no_mines"
+NO_MINE_IMG_DIR = "no_mines"
 CHECKPOINT_PATH = "EXP_T-ML-LWIR/checkpoints/fold_0_best.pt"
 MODE = "cuda"
 
