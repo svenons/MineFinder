@@ -20,6 +20,11 @@ spec = importlib.util.spec_from_file_location(
 exp_ml_main = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(exp_ml_main)
 LandmineDetector = exp_ml_main.LandmineDetector
+try:
+    from landmine_detector.main import LandmineDetector
+except ImportError:
+    print("Warning: Could not import LandmineDetector. ML functionality will be disabled.")
+    LandmineDetector = None
 
 
 MINE_IMG_DIR = "EXP_T-ML-LWIR/data/03_03_2020/JPG/Zone 2 Mine 1cm depth"
@@ -73,6 +78,10 @@ class WASDMLController(DroneController):
         """Reinitialize any ML resources based on current settings.
         Placeholder: just emits an event; replace with real model loading.
         """
+        if LandmineDetector is None:
+            print("Cannot initialize ML model: LandmineDetector not available.")
+            self.ml_model = None
+            return
         try:
             self.ml_model = LandmineDetector(
                 self.settings["checkpoint_path"],
@@ -80,6 +89,9 @@ class WASDMLController(DroneController):
             )
         except Exception:
             pass
+        except Exception as e:
+            print(f"Error initializing ML model: {e}")
+            self.ml_model = None
 
     KEYMAP = {
         pygame.K_w: (0, -1, "W"),
@@ -105,6 +117,16 @@ class WASDMLController(DroneController):
     # Scanner: check if the cell is a mine
     async def scan_at(self, world, x_cm: int, y_cm: int):
         # Ensure model is initialized lazily
+        if self.ml_model is None and LandmineDetector is not None:
+            try:
+                self.on_settings_applied()
+            except Exception as e:
+                print(f"Lazy initialization of ML model failed: {e}")
+                self.ml_model = None
+
+        if self.ml_model is None:
+            return {"mine": False, "error": "ML model not loaded"}
+
         try:
             if self.ml_model is None:
                 self.ml_model = LandmineDetector(
@@ -117,7 +139,12 @@ class WASDMLController(DroneController):
             is_mine = bool(result.get("predicted_class", 0) == 1) if isinstance(result, dict) else bool(result)
             return {"mine": is_mine}
         except Exception:
+            result = self.ml_model.predict_image(path)
+            is_mine = bool(result.get("predicted_class", 0) == 1)
+            return {"mine": is_mine, "confidence": result.get("confidence", 0.0)}
+        except Exception as e:
             # On any failure, report no mine to keep the game responsive
+            print(f"Error during scan_at: {e}")
             return {"mine": False}
 
     @staticmethod

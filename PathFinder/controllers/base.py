@@ -61,6 +61,13 @@ class DroneController:
         """Update per frame if needed."""
         pass
 
+    def get_paths_to_draw(self):
+        """Return a list of path segments with their colors for rendering.
+        Returns: List of tuples (path_list, color_tuple)
+        Default implementation returns an empty list (no paths to draw).
+        """
+        return []
+
     # Optional capability: scanning
     async def scan_at(self, world: Any, x_cm: int, y_cm: int) -> Dict[str, Any]:  # noqa: D401
         """Return a dict with scan results for the cell (x_cm,y_cm).
