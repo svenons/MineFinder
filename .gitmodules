@@ -1,0 +1,3 @@
+[submodule "MachineLearning"]
+	path = MachineLearning
+	url = https://github.com/svenons/EXP_T-ML-LWIR
