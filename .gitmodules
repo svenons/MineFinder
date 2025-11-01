@@ -1,0 +1,3 @@
+[submodule "PathFinder/EXP_T-ML-LWIR"]
+	path = PathFinder/EXP_T-ML-LWIR
+	url = https://github.com/svenons/EXP_T-ML-LWIR.git
