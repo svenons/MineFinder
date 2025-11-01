@@ -1,0 +1,173 @@
+@startuml MineDetectionDrone_Class 
+
+title Drone Software Class Model 
+
+  
+
+' --- Enumerations / Data Types --- 
+
+enum MissionState { 
+
+  INITIALIZED 
+
+  SCANNING 
+
+  RETURN_HOME 
+
+  DISTRIBUTING 
+
+  MISSION_COMPLETE 
+
+} 
+
+  
+
+class Waypoint { 
+
+  + x_coord : float 
+
+  + y_coord : float 
+
+  + altitude : float 
+
+  + sequence_id : int 
+
+  -- 
+
+  + ToGPS() 
+
+} 
+
+  
+
+' --- Core Logic Classes --- 
+
+class MissionController { 
+
+  + currentState : MissionState 
+
+  + finalDestination : Waypoint 
+
+  -- 
+
+  + StartMission() 
+
+  + ReportWaypointReached(Waypoint) 
+
+  + HandleMineAlert(MineRecord) 
+
+} 
+
+  
+
+class PathPlannerCore { 
+
+  - MineMap : List<MineRecord> 
+
+  - FlightGrid : Map<Waypoint, SafetyScore> 
+
+  -- 
+
+  + CalculatePathSegment() : Waypoint 
+
+  + RecalculatePath(MineRecord) 
+
+  + IsDestinationReached() : boolean 
+
+} 
+
+  
+
+' --- Data and Sensor Classes --- 
+
+class MineRecord { 
+
+  + location : Waypoint 
+
+  + timestamp : DateTime 
+
+  + confidenceScore : float 
+
+  -- 
+
+  + LogLocation() 
+
+} 
+
+  
+
+class SensorManager { 
+
+  + currentReading : RawData 
+
+  + calibration : float 
+
+  -- 
+
+  + GetFilteredReading() : SensorData 
+
+  + DetectMine(SensorData) : boolean 
+
+} 
+
+  
+
+class CommsModule { 
+
+  + serverIP : string 
+
+  + port : int 
+
+  -- 
+
+  + Connect() 
+
+  + TransmitData(MissionData) 
+
+} 
+
+  
+
+class AttachmentManager { 
+
+    + currentAttachment : String 
+
+    -- 
+
+    + SetDetectionMode() 
+
+    + SetDistributionMode() 
+
+} 
+
+  
+
+' --- Relationships --- 
+
+' 1. Mission Controller manages the path, sensors, and state 
+
+MissionController "1" o-- "many" Waypoint : manages path 
+
+MissionController "1" -- "1" PathPlannerCore : uses 
+
+MissionController "1" -- "1" CommsModule : relies on 
+
+MissionController "1" -- "1" SensorManager : monitors 
+
+MissionController "1" -- "1" AttachmentManager : controls mode 
+
+  
+
+' 2. Path Planner Logic 
+
+PathPlannerCore "1" -- "many" MineRecord : stores 
+
+  
+
+' 3. Sensor and Data 
+
+SensorManager ..> MineRecord : reports (dependency) 
+
+  
+
+@enduml 

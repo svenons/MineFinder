@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="489e087f-858d-403e-9536-7b44651dce37" name="Changes" comment="Added Diagrams from YouTrack Task">
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/C4.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/C4_Component.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/C4_Container.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/C4_Context.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/C4_Deployment.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/C4_Dynamic.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/C4_Sequence.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/LICENSE" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/LayoutOptions.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/Themes.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/images/intellij_c4plantum_live_template1.gif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/images/intellij_c4plantum_live_template2.gif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/images/vscode_c4plantuml_snippets.gif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/intellij/c4_live_template.zip" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Component Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Container Diagram Sample - bigbankplc-icons.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Container Diagram Sample - bigbankplc-styles.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Container Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Container Diagram Sample - message bus.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Container Diagram Sample - techtribesjs.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Context Diagram Sample - bigbankplc-landscape.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Context Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Context Diagram Sample - enterprise.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Deployment Diagram Sample - bigbankplc-details.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Deployment Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Dynamic Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/C4_Sequence Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestAllAddTags.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestAllElementsWithLegend.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestAllPlantUmlElements.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestBoundaryTagSupport.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestEmptyLabel.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestFloatingLegend.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLabelsWithLineBreak.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLayDirections.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLayoutLandscape.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLayoutLandscapeDynamic.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLayoutLandscapeWithLay.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLayoutLandscapeWithLayNoRotate.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLegend.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLegendDetailsNone.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLegendDetailsNormal.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLegendDetailsSmall.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLegendHidden.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLegendSprite.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestLegendTitle.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestPersonOutline.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestPersonPortrait.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestPredefinedSprites.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestProperty.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestPropertyMissingColumns.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestRelations.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestRelationsDynamic.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestRelationsTags.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestSequenceSkinparams.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestSketchStyle.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestSystemPersonSupportType.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestTagSupportsSprite.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestTagSupportsSpriteTechn.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestThemeC4_All.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestThemeC4_FirstTest.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestThemeC4_united.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestThemeSupport.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestThemeTemplate.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/percy/TestVersion.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4CoreDiagrams.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Component Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Container Diagram Sample - bigbankplc-icons.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Container Diagram Sample - bigbankplc-styles.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Container Diagram Sample - bigbankplc-themes.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Container Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Container Diagram Sample - message bus.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Container Diagram Sample - techtribesjs.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Context Diagram Sample - bigbankplc-landscape.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Context Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Context Diagram Sample - enterprise.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Deployment Diagram Sample - bigbankplc-details.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Deployment Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Dynamic Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Dynamic Diagram Sample - message bus - old format.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Dynamic Diagram Sample - message bus.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Sequence Diagram Sample - bigbankplc.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/samples/C4_Sequence Diagram Sample - complex.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/theme.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_chinese.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_danish.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_dutch.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_english.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_french.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_german.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_italian.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_japanese.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_korean.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_portuguese.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_russian.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_spanish.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4Language_ukrainian.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4_FirstTest.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4_blue.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4_brown.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4_green.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4_sandstone.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4_superhero.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4_united.puml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Diagrams/C4-PlantUML/themes/puml-theme-C4_violet.puml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="main" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="ROOT_SYNC" value="DONT_SYNC" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;nicki419&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/svenons/MineFinder.git&quot;,
+    &quot;accountId&quot;: &quot;07647f4b-2921-445e-816b-ca57a6b19a11&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5
+}</component>
+  <component name="ProjectId" id="34QKoZK0vzK8L6grx942eSfnKFd" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.RadMigrateCodeStyle&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;MD-4-Diagrams&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/nick/Desktop/Uni/SDU Semester 5/Exploring Entrepreneurship/Project Files/MineFinder&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;project.propVCSSupport.DirectoryMappings&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-b598e85cdad2-JavaScript-WS-252.25557.126" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="489e087f-858d-403e-9536-7b44651dce37" name="Changes" comment="" />
+      <created>1761140530493</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1761140530493</updated>
+      <workItem from="1761140531619" duration="58000" />
+      <workItem from="1761564120045" duration="60000" />
+      <workItem from="1761564215770" duration="2062000" />
+      <workItem from="1761566293171" duration="194000" />
+    </task>
+    <task id="LOCAL-00001" summary="Added Diagrams from YouTrack Task">
+      <option name="closed" value="true" />
+      <created>1761566039648</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1761566039648</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <ignored-roots>
+      <path value="$PROJECT_DIR$/Diagrams/C4-PlantUML" />
+    </ignored-roots>
+    <MESSAGE value="Added Diagrams from YouTrack Task" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added Diagrams from YouTrack Task" />
+  </component>
+</project>

@@ -1,0 +1,68 @@
+@startuml MineDetectionDrone_Component_V1
+title Mine Detection Drone System - Component Diagram
+
+' --- Actors ---
+actor Operator as Op
+actor "End User" as User
+
+' --- Components ---
+component "Operator / Mission Controller" as MissionController {
+  [Mission Interface]
+  [Attachment Manager]
+}
+
+component "Flight Controller" as FlightCtrl {
+  [Navigation Module]
+  [Motor Control]
+}
+
+component "Sensor Manager" as SensorMgr {
+  [Metal Detector]
+  [Mine Detection Algorithm]
+}
+
+component "Path Planner (ML Model)" as PathPlanner {
+  [Safe Path Calculation]
+  [Path Recalculation Logic]
+}
+
+component "Data Logger / Comms" as DataLogger {
+  [Mine Location Logging]
+}
+
+component "Control Station" as ControlStation {
+  [Mission Data Receiver]
+  [Safe Path Flyer Generator]
+  [Mission Report Module]
+}
+
+component "Flyer Distribution Module" as FlyerModule {
+  [Flyer Delivery System]
+  [Attachment Interface]
+}
+
+' --- Relationships ---
+
+Op --> MissionController : Configure Mission / Provide Destination
+MissionController --> FlightCtrl : Send Flight Commands
+MissionController --> SensorMgr : Activate / Deactivate Sensors
+SensorMgr --> PathPlanner : Send Mine Detection Data
+PathPlanner --> FlightCtrl : Send Updated Path / Waypoints
+PathPlanner --> DataLogger : Log Mine Coordinates
+DataLogger --> ControlStation : Transmit Path & Mine Data
+ControlStation --> FlyerModule : Send Generated Flyer Data
+MissionController --> FlyerModule : Switch to Flyer Mode
+FlyerModule --> User : Distribute Safe Path Flyers
+
+' --- Notes ---
+note right of PathPlanner
+  Uses ML algorithms to calculate
+  the safest path avoiding mines.
+end note
+
+note bottom of ControlStation
+  Generates flyers showing safe routes
+  and transmits them to the drone for delivery.
+end note
+
+@enduml

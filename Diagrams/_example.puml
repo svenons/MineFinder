@@ -1,0 +1,49 @@
+@startuml
+
+!include _theme.puml
+' ---------- Actors / Participants ----------
+actor Customer
+
+' ---------- Use Cases ----------
+(Customer Login)
+(Admin Approve Order)
+
+' ---------- Classes / Components / Nodes ----------
+component PaymentProcessor
+node ServerNode
+
+' ---------- Boundaries ----------
+package "System Boundary" {
+    rectangle "Control" as Ctrl
+    entity "Product Entity" as Product
+    database "Orders DB" as DB
+    collections "Product Catalog" as Catalog
+    queue "Email Queue" as Queue
+}
+
+' ---------- Arrows ----------
+Customer --> (Customer Login)
+Admin --> (Admin Approve Order)
+(Customer Login) --> Ctrl
+Ctrl --> Product : "TEST"
+Ctrl --> DB : "test"
+Ctrl --> Queue
+Ctrl --> Catalog
+PaymentProcessor --> DB
+ServerNode --> PaymentProcessor
+
+' ---------- Notes ----------
+note right of Ctrl
+  This is a note attached to a control
+end note
+
+note left of Customer
+  Actor: Customer
+end note
+
+' ---------- Legend ----------
+legend right
+  Elements Demonstration
+end legend
+
+@enduml

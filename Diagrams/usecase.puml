@@ -1,0 +1,81 @@
+@startuml MineDetectionDrone_UseCase 
+
+left to right direction 
+
+  
+
+actor Operator as "Operator" 
+
+actor ControlStation as "Control Station" 
+
+actor People as "People (End User)" 
+
+  
+
+rectangle "Mine Detection Drone System" { 
+
+  (Operate Drone) as A 
+
+  (Set Final Destination) as B 
+
+  (Perform Automated Mine Scanning) as C 
+
+  (Detect Mine) as D 
+
+  (Mark Mine Location) as E 
+
+  (Calculate Safest Path) as F 
+
+  (Transmit Path Data) as G 
+
+  (Distribute Flyer) as H 
+
+} 
+
+  
+
+rectangle "External System" { 
+
+    (Generate Navigation Flyer) as I 
+
+} 
+
+  
+
+' 1. Operator Interactions 
+
+Operator -- B 
+
+Operator -- A 
+
+  
+
+' 2. Automated Scanning Flow 
+
+B ..> C : Initiates Mission 
+
+  
+
+C .> D : <<include>> 
+
+C .> E : <<include>> 
+
+C .> F : <<include>> 
+
+  
+
+' 3. Data Reporting 
+
+G -- ControlStation 
+
+ControlStation -- I 
+
+  
+
+' 4. Flyer Distribution 
+
+H -- People 
+
+I ..> H : Precedes 
+
+@enduml 

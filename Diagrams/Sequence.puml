@@ -1,0 +1,60 @@
+@startuml MineDetectionDrone_Sequence_V1
+title Mine Detection Drone - Sequence Diagram
+
+actor Operator
+participant "Mission Controller" as MC
+participant "Flight Controller" as FC
+participant "Sensor Manager" as SM
+participant "Path Planner (ML Model)" as PP
+participant "Data Logger / Comms" as DL
+participant "Control Station" as CS
+participant "Flyer Distribution Module" as FM
+actor "End User" as EU
+
+== Mission Initialization ==
+Operator -> MC : Provide Final Destination
+MC -> FC : Initialize and Activate Systems
+MC -> SM : Activate Sensors
+FC -> Operator : Confirm Takeoff Ready
+Operator -> FC : Command Takeoff
+FC -> MC : Drone Takeoff Confirmed
+
+== Scanning and Detection Loop ==
+loop Scanning Loop
+  FC -> SM : Request Environmental Scan
+  SM -> SM : Scan Area (Metal Detector, Sensors)
+  
+  alt Mine Detected
+    SM -> PP : Send Mine Detection Data
+    PP -> DL : Log Mine Coordinates
+    PP -> FC : Send Updated Safe Path
+    FC -> MC : Acknowledge Path Adjustment
+  else No Mine Detected
+    SM -> PP : Confirm Path Safe
+    PP -> FC : Continue on Current Path
+  end
+  
+  FC -> MC : Report Position / Progress
+end
+
+== Destination Reached ==
+FC -> MC : Destination Reached Notification
+MC -> DL : Send Mission Summary
+DL -> CS : Transmit Safe Path and Mine Data
+
+== Flyer Generation ==
+CS -> CS : Generate Safe Path Flyer
+CS -> MC : Send Flyer Data
+
+== Flyer Distribution Phase ==
+MC -> FM : Switch to Flyer Delivery Mode
+MC -> FC : Command Drone to Start Flyer Delivery
+FC -> FM : Deploy Flyers
+FM -> EU : Deliver Flyers to End Users
+
+== Mission Complete ==
+FC -> MC : Return to Base
+MC -> Operator : Mission Completed
+Operator -> MC : Deactivate Drone Systems
+
+@enduml
