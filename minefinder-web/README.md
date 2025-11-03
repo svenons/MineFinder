@@ -1,11 +1,44 @@
+# MineFinder Web - Mission Controller
 
-## Get started
+Electron + React + TypeScript desktop application for managing drone mine detection missions.
 
-```
+## Overview
+
+The Mission Controller is the operator interface for:
+- Configuring missions (Point A → Point B with scan corridor)
+- Managing sensor attachments (metal detectors, thermal, GPR)
+- Real-time detection aggregation with confidence tracking
+- PathFinder integration for safe path calculation
+- Modular communication layer (test, serial, satellite-ready)
+
+## Get Started
+
+```bash
 cd minefinder-web
 npm install
-npm run dev
+npm run electron-dev  # Development mode with hot reload
 ```
+
+## Architecture
+
+See [IMPLEMENTATION.md](./IMPLEMENTATION.md) for detailed documentation.
+
+**Key Components:**
+- **Stores** (Zustand): Mission, Detection, Attachment state management
+- **Services**: Communication, Detection Aggregation, PathFinder integration
+- **Components**: Grid, Mission Form, Attachment Selector, Dashboard
+- **Electron IPC**: Python subprocess spawning, file persistence
+
+## Technology Stack
+
+- **Electron** - Desktop app framework
+- **React 19** - UI framework
+- **TypeScript** - Type safety
+- **Zustand** - State management
+- **Vite** - Build tool
+- **PathFinder** - Python simulation integration
+
+---
 
 ## Information from default README.md
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
