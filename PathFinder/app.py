@@ -16,7 +16,8 @@ from models import Config
 from world import World
 from ui.widgets import TextInput, Button, Dropdown
 from controllers.wasd import WASDController
-from controllers.wasd_ml import WASDMLController
+from controllers.smart_controller import SmartController
+#from controllers.wasd_ml import WASDMLController
 
 # Layout/constants
 SIDEBAR_W = 280
@@ -40,6 +41,11 @@ class App:
         self.input_height = TextInput(pygame.Rect(16, 100, SIDEBAR_W - 32, 30), str(self.cfg.height_cm), numeric=True)
         self.input_mpc = TextInput(pygame.Rect(16, 160, SIDEBAR_W - 32, 30), str(self.cfg.metres_per_cm), numeric=True)
         self.apply_btn = Button(pygame.Rect(16, 210, SIDEBAR_W - 32, 34), "Apply", self.apply_config)
+        self.start_nav_btn = None
+        self.clear_path_btn = None
+        # Remove single path storage, will get paths from controller
+        # self.path_to_draw = []
+        # self.path_color = (100, 100, 255) # Default path color (blue)
 
         self.pixels_per_cm = 20  # base zoom; will be adapted to window
         self.canvas_rect = pygame.Rect(SIDEBAR_W + MARGIN, MARGIN, 800, 600)
@@ -51,7 +57,8 @@ class App:
         # Controllers registry and active controller
         self.controller_registry = {
             "wasd": WASDController,
-            "wasd_ml": WASDMLController,
+            "smart": SmartController,
+            # "wasd_ml": WASDMLController,
         }
         self.selected_controller_id = "wasd"
         self.active_controller = self.controller_registry[self.selected_controller_id]()
@@ -59,10 +66,10 @@ class App:
 
         # Controller settings UI state
         self.ctrl_settings_inputs = []  # list of dicts: {"key": str, "label": str, "input": TextInput}
-        self.ctrl_apply_btn = Button(pygame.Rect(16, 330, SIDEBAR_W - 32, 30), "Apply Controller Settings", self.apply_controller_settings)
+        self.ctrl_apply_btn = Button(pygame.Rect(16, 370, SIDEBAR_W - 32, 30), "Apply Controller Settings", self.apply_controller_settings)
 
         # UI: controller dropdown (position will be refined in relayout)
-        self.controller_dropdown = Dropdown(pygame.Rect(16, 260, SIDEBAR_W - 32, 30),
+        self.controller_dropdown = Dropdown(pygame.Rect(16, 290, SIDEBAR_W - 32, 30),
                                             self.get_controller_options(),
                                             self.selected_controller_id,
                                             self.on_controller_selected)
@@ -82,6 +89,19 @@ class App:
         self._stop_reader = threading.Event()
         self._reader_thread = threading.Thread(target=self.stdin_reader, daemon=True)
         self._reader_thread.start()
+
+    def start_navigation(self):
+        if self.selected_controller_id == "smart":
+            self.active_controller.start_navigation()
+        else:
+            self.show_toast("Switch to Smart Autopilot controller first!", duration=2.0)
+
+    def clear_path(self):
+        """Clear all paths and stop navigation."""
+        if self.active_controller and hasattr(self.active_controller, 'stop_navigation'):
+            self.active_controller.stop_navigation()
+            self.show_toast("Path cleared", duration=1.5)
+            emit("path_cleared", {})
 
     # -------- Controller UI/helpers --------
     def get_controller_options(self):
@@ -112,13 +132,23 @@ class App:
 
     def rebuild_controller_settings_ui(self):
         self.ctrl_settings_inputs = []
+        self.start_nav_btn = None
+        self.clear_path_btn = None
         schema = []
         try:
             schema = self.active_controller.settings_schema() if self.active_controller else []  # type: ignore[attr-defined]
         except Exception:
             schema = []
+
+        y = self.controller_dropdown.rect.bottom + 10
+
+        if self.selected_controller_id == "smart":
+            self.start_nav_btn = Button(pygame.Rect(16, y, SIDEBAR_W - 32, 34), "Start Navigation", self.start_navigation)
+            y += 40
+            self.clear_path_btn = Button(pygame.Rect(16, y, SIDEBAR_W - 32, 34), "Clear Path", self.clear_path)
+            y += 40
+
         # Build inputs starting below dropdown
-        y = 300
         for field in schema:
             key = field.get("key")
             label = field.get("label", key)
@@ -241,6 +271,9 @@ class App:
             # UI side-effect: toast when mine detected
             if result.get("mine"):
                 self.show_toast(f"Mine detected at {x_cm},{y_cm}")
+                self.world.mines.add((x_cm, y_cm)) # Add detected mine to world state
+                if self.active_controller is not None and hasattr(self.active_controller, 'on_mine_detected'):
+                    self.active_controller.on_mine_detected() # Notify controller
             # Emit scan completion
             emit("drone_scan", {
                 "x_cm": x_cm, "y_cm": y_cm,
@@ -331,6 +364,13 @@ class App:
         # Also consume clicks directly on the dropdown area
         if (e.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP)) and self.controller_dropdown.rect.collidepoint(e.pos):
             return
+
+        if self.start_nav_btn:
+            self.start_nav_btn.handle_event(e)
+
+        if self.clear_path_btn:
+            self.clear_path_btn.handle_event(e)
+
         for item in self.ctrl_settings_inputs:
             item["input"].handle_event(e)
         self.ctrl_apply_btn.handle_event(e)
@@ -416,10 +456,19 @@ class App:
             "Protocol: JSONL on stdout",
         ]
         # Controller selection
-        surf.blit(self.font_small.render("Controller", True, (60, 60, 60)), (16, 224))
+        surf.blit(self.font_small.render("Controller", True, (60, 60, 60)), (16, 270))
         # Draw dynamic controller settings and other UI first, then draw dropdown last for correct z-order
         # Dynamic controller settings depend on dropdown position for layout
         y = self.controller_dropdown.rect.bottom + 10
+
+        if self.start_nav_btn:
+            self.start_nav_btn.draw(surf, self.font)
+            y = self.start_nav_btn.rect.bottom + 10
+
+        if self.clear_path_btn:
+            self.clear_path_btn.draw(surf, self.font)
+            y = self.clear_path_btn.rect.bottom + 10
+
         for item in self.ctrl_settings_inputs:
             label = item.get("label", item.get("key", ""))
             surf.blit(self.font_small.render(label, True, (60, 60, 60)), (16, y))
@@ -488,6 +537,26 @@ class App:
         drone_rect = pygame.Rect(dx + 3, dy + 3, max(6, ppc - 6), max(6, ppc - 6))
         pygame.draw.rect(surf, (60, 120, 200), drone_rect, border_radius=4)
         pygame.draw.rect(surf, (30, 80, 160), drone_rect, 2, border_radius=4)
+
+        # Draw paths from controller if available
+        if self.active_controller is not None and hasattr(self.active_controller, 'get_paths_to_draw'):
+            try:
+                paths_to_draw = self.active_controller.get_paths_to_draw()
+                for path_list, path_color in paths_to_draw:
+                    if len(path_list) >= 2:
+                        points = []
+                        for (cx, cy) in path_list:
+                            points.append((x0 + cx * ppc + ppc // 2, y0 + cy * ppc + ppc // 2))
+                        # Draw all paths with consistent thickness
+                        pygame.draw.lines(surf, path_color, False, points, 3)
+                    elif len(path_list) == 1:
+                        # Draw a single point as a small circle
+                        cx, cy = path_list[0]
+                        point_x = x0 + cx * ppc + ppc // 2
+                        point_y = y0 + cy * ppc + ppc // 2
+                        pygame.draw.circle(surf, path_color, (point_x, point_y), 3)
+            except Exception as e:
+                pass
 
         # Hover highlight
         mx, my = pygame.mouse.get_pos()
