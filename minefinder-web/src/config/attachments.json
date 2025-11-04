@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "last_updated": 0,
+  "known_attachments": [
+    {
+      "id": "drone_01_metal",
+      "type": "metal_detector",
+      "status": "offline",
+      "specs": {
+        "model": "MD-100X",
+        "range_m": 0.5,
+        "accuracy": "±5cm",
+        "calibrated_at": 0
+      },
+      "comm": {
+        "last_seen": 0,
+        "module_type": "lora_sx1276"
+      }
+    },
+    {
+      "id": "drone_02_thermal",
+      "type": "thermal",
+      "status": "offline",
+      "specs": {
+        "model": "FLIR-Lepton",
+        "range_m": 1.0,
+        "accuracy": "thermal signature detection",
+        "resolution": "80x60",
+        "calibrated_at": 0
+      },
+      "comm": {
+        "last_seen": 0,
+        "module_type": "lora_sx1276"
+      }
+    }
+  ],
+  "discovered_attachments": []
+}

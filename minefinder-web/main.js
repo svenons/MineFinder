@@ -1,6 +1,8 @@
-import { app, BrowserWindow, Menu } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, session } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
+import { writeFile } from 'fs/promises';
 import isDev from 'electron-is-dev';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -75,7 +77,17 @@ const createMenu = () => {
   Menu.setApplicationMenu(menu);
 };
 
-app.on('ready', createWindow);
+app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'geolocation') {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -92,4 +104,104 @@ app.on('activate', () => {
 // Handle any uncaught exceptions
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
+});
+
+// ==============================================================================
+// IPC Handlers
+// ==============================================================================
+
+/**
+ * Run PathFinder simulation
+ */
+ipcMain.handle('pathfinder:run', async (event, { worldExport, pythonPath = 'python3' }) => {
+  try {
+    // PathFinder directory (relative to project root)
+    const pathFinderDir = path.join(__dirname, '..', 'PathFinder');
+    const mainPy = path.join(pathFinderDir, 'main.py');
+
+    // Spawn Python process
+    const pythonProcess = spawn(pythonPath, [mainPy], {
+      cwd: pathFinderDir,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdoutData = '';
+    let stderrData = '';
+    const events = [];
+
+    // Collect stdout (JSONL events)
+    pythonProcess.stdout.on('data', (data) => {
+      const lines = data.toString().split('\n').filter(line => line.trim());
+      for (const line of lines) {
+        try {
+          const event = JSON.parse(line);
+          events.push(event);
+        } catch (err) {
+          stdoutData += line + '\n';
+        }
+      }
+    });
+
+    // Collect stderr
+    pythonProcess.stderr.on('data', (data) => {
+      stderrData += data.toString();
+    });
+
+    // Wait for process to complete
+    const exitCode = await new Promise((resolve, reject) => {
+      pythonProcess.on('close', (code) => {
+        resolve(code);
+      });
+      pythonProcess.on('error', (error) => {
+        reject(error);
+      });
+
+      // Send world export via stdin
+      pythonProcess.stdin.write(JSON.stringify(worldExport) + '\n');
+      pythonProcess.stdin.end();
+
+      // Timeout after 30 seconds
+      setTimeout(() => {
+        pythonProcess.kill();
+        reject(new Error('PathFinder process timed out'));
+      }, 30000);
+    });
+
+    return {
+      success: exitCode === 0,
+      events,
+      stdout: stdoutData,
+      stderr: stderrData,
+      exitCode,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+/**
+ * Save mission data to file
+ */
+ipcMain.handle('file:save', async (event, { filename, content }) => {
+  try {
+    const savePath = path.join(app.getPath('userData'), 'missions', filename);
+    await writeFile(savePath, content, 'utf-8');
+    return { success: true, path: savePath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * Get application paths
+ */
+ipcMain.handle('app:getPaths', async () => {
+  return {
+    userData: app.getPath('userData'),
+    projectRoot: path.join(__dirname, '..'),
+    pathFinder: path.join(__dirname, '..', 'PathFinder'),
+  };
 });
