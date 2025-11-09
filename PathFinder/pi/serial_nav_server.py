@@ -70,11 +70,13 @@ class Board:
 
 # ----------------- Server -----------------
 class SerialNavServer:
-    def __init__(self, port: str, baud: int):
+    def __init__(self, port: str, baud: int, scan_timeout: float = 60.0, simulate_scanner: bool = True):
         if serial is None:
             raise RuntimeError("pyserial not available on this system. Run: pip install pyserial")
         self.port = port
         self.baud = baud
+        self.scan_timeout = float(scan_timeout)
+        self.simulate_scanner = bool(simulate_scanner)
         self.ser = serial.Serial(self.port, self.baud, timeout=0.2, write_timeout=0.5)
         self.rx_queue: Queue = Queue()
         self.stop_evt = threading.Event()
@@ -86,6 +88,7 @@ class SerialNavServer:
         self.goal: Optional[Tuple[int, int]] = None
         self.current: Optional[Tuple[int, int]] = None
         self.known_mines: Set[Tuple[int, int]] = set()
+        self.hidden_mines: Set[Tuple[int, int]] = set()  # Optional ground-truth for simulation (not used for planning)
         self.pending_nav_stop = False
 
     # --------------- I/O ---------------
@@ -198,29 +201,55 @@ class SerialNavServer:
         idx = 1
         while not self.pending_nav_stop and idx < len(path):
             step = path[idx]
-            # Ask the client to scan this cell before moving
-            self._send({"type": "request_scan", "at": [step[0], step[1]]})
-            # Wait for a scan_result for this cell, with a timeout
+            sx, sy = step[0], step[1]
+
+            # Simulation mode: server "knows" hidden mines but pretends to only check the current step.
+            if self.simulate_scanner:
+                if (sx, sy) in self.hidden_mines:
+                    # Encountered a mine at the next step → register and re-plan (no move)
+                    self._register_mine((sx, sy))
+                    self._send({"type": "status", "message": f"Mine at {sx},{sy} → re-planning"})
+                    new_path = self._plan(self.current, goal)
+                    if not new_path:
+                        self._send({"type": "toast", "message": "Path blocked by mines", "duration": 2.0})
+                        self._send({"type": "nav_done"})
+                        return
+                    path = new_path
+                    idx = 1
+                    self._send({"type": "path", "path": [[x, y] for (x, y) in path]})
+                    continue
+                else:
+                    # Safe → move immediately
+                    self.current = (sx, sy)
+                    self._send({"type": "move", "to": [sx, sy]})
+                    idx += 1
+                    continue
+
+            # Non-simulated mode: ask the client to scan this cell before moving
+            self._send({"type": "request_scan", "at": [sx, sy]})
+
+            # Wait for a scan_result for this cell, with a (configurable) timeout
             def pred(msg):
                 return (
                     msg.get("type") == "scan_result"
                     and isinstance(msg.get("at"), list)
-                    and msg.get("at") == [step[0], step[1]]
+                    and msg.get("at") == [sx, sy]
                 )
 
-            reply = self._wait_for(pred, timeout=3.0)
+            reply = self._wait_for(pred, timeout=self.scan_timeout)
             mine_here = False
             if reply is None:
                 # timeout or nav_stop; if stopped, break; else assume safe but report
                 if self.pending_nav_stop:
                     break
-                self._send({"type": "status", "message": f"Scan timeout at {step}. Proceeding cautiously."})
+                self._send({"type": "status", "message": f"Scan timeout at {sx},{sy}. Proceeding cautiously."})
             else:
                 mine_here = bool(reply.get("mine", False))
             # Also consider any asynchronously reported mines (already registered)
-            if (step[0], step[1]) in self.known_mines or mine_here:
+            if (sx, sy) in self.known_mines or mine_here:
                 # Record and re-plan from current
-                self._register_mine((step[0], step[1]))
+                self._register_mine((sx, sy))
+                self._send({"type": "status", "message": f"Mine at {sx},{sy} → re-planning"})
                 new_path = self._plan(self.current, goal)
                 if not new_path:
                     self._send({"type": "toast", "message": "Path blocked by mines", "duration": 2.0})
@@ -231,8 +260,8 @@ class SerialNavServer:
                 self._send({"type": "path", "path": [[x, y] for (x, y) in path]})
                 continue
             # Safe → move
-            self.current = step
-            self._send({"type": "move", "to": [step[0], step[1]]})
+            self.current = (sx, sy)
+            self._send({"type": "move", "to": [sx, sy]})
             # If goal reached (in case goal equals step), continue loop condition will exit next
             idx += 1
         self._send({"type": "nav_done"})
@@ -253,7 +282,7 @@ class SerialNavServer:
             elif t == "nav_start":
                 # Reset session state
                 self.pending_nav_stop = False
-                self.known_mines = set()
+                self.known_mines = set()  # Start with zero known mines (do not seed)
                 board_obj = msg.get("board") or {}
                 width = int(board_obj.get("width", 0))
                 height = int(board_obj.get("height", 0))
@@ -265,9 +294,9 @@ class SerialNavServer:
                             mines.add((int(m[0]), int(m[1])))
                     except Exception:
                         pass
+                # Store any provided mines as hidden ground-truth (simulation aid), but DO NOT seed planning
+                self.hidden_mines = set(mines)
                 self.board = Board(width=width, height=height, metres_per_cm=mpc, mines=mines)
-                # Initially known mines are those provided
-                self.known_mines = set(mines)
                 start = msg.get("start") or [0, 0]
                 goal = msg.get("goal") or [0, 0]
                 try:
@@ -312,17 +341,21 @@ def parse_args(argv: List[str]):
     parser = argparse.ArgumentParser(description="Serial Navigation Server (Raspberry Pi)")
     parser.add_argument("--port", default=os.environ.get("SERIAL_PORT", "/dev/serial0"), help="Serial port device path")
     parser.add_argument("--baud", type=int, default=int(os.environ.get("SERIAL_BAUD", "9600")), help="Baud rate")
+    parser.add_argument("--scan-timeout", type=float, default=float(os.environ.get("SCAN_TIMEOUT", "60")), help="Scan wait timeout (seconds) in non-simulated mode")
+    sim_default = os.environ.get("SIMULATE_SCANNER", "1").lower() not in ("0", "false", "no")
+    parser.add_argument("--simulate-scanner", dest="simulate_scanner", action="store_true", default=sim_default, help="Simulate scans using hidden ground-truth mines (default: on)")
+    parser.add_argument("--no-simulate-scanner", dest="simulate_scanner", action="store_false", help="Disable simulated scanner; use request_scan/scan_result flow")
     return parser.parse_args(argv)
 
 
 def main(argv: Optional[List[str]] = None):
     args = parse_args(sys.argv[1:] if argv is None else argv)
-    print(f"[SerialNavServer] starting on {args.port}@{args.baud}")
+    print(f"[SerialNavServer] starting on {args.port}@{args.baud} (simulate_scanner={args.simulate_scanner}, scan_timeout={args.scan_timeout}s)")
     if serial is None:
         print("pyserial not installed. pip install pyserial", file=sys.stderr)
         return 2
     try:
-        server = SerialNavServer(args.port, args.baud)
+        server = SerialNavServer(args.port, args.baud, scan_timeout=args.scan_timeout, simulate_scanner=args.simulate_scanner)
     except Exception as e:
         print(f"[SerialNavServer] failed to open serial: {e}", file=sys.stderr)
         return 2

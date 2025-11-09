@@ -55,7 +55,7 @@ class SmartController(DroneController):
         self.backtrack_progress = 0  # Progress along the backtrack path
 
     def display_name(self) -> str:
-        return "Smart Autopilot (Serial Client)"
+        return "Smart(Serial)"
 
     # ---- Settings & lifecycle ----
     def settings_schema(self):
@@ -193,7 +193,7 @@ class SmartController(DroneController):
         self.moving_back = False
         self.mine_position = None
 
-        # Send board description and nav start
+        # Send board description and nav start (do NOT disclose mines at start)
         world = self.app.world
         payload = {
             "type": "nav_start",
@@ -201,7 +201,8 @@ class SmartController(DroneController):
                 "width": world.cfg.width_cm,
                 "height": world.cfg.height_cm,
                 "metres_per_cm": world.cfg.metres_per_cm,
-                "mines": list([list(m) for m in world.mines]),
+                # Provide mines only as hidden ground-truth for simulation; server must not seed planning from this
+                "mines": [list(m) for m in world.mines],
             },
             "start": [world.drone.x_cm, world.drone.y_cm],
             "goal": list(world.goal),
