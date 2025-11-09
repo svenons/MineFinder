@@ -29,7 +29,7 @@ except ImportError:
 
 MINE_IMG_DIR = "EXP_T-ML-LWIR/data/03_03_2020/JPG/Zone 2 Mine 1cm depth"
 NO_MINE_IMG_DIR = "no_mines"
-CHECKPOINT_PATH = "EXP_T-ML-LWIR/checkpoints/fold_0_best.pt"
+CHECKPOINT_PATH = "EXP_T-ML-LWIR/checkpoints/best_convnext_abmil.pt"
 MODE = "cuda"
 
 class WASDMLController(DroneController):

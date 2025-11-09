@@ -17,6 +17,7 @@ from world import World
 from ui.widgets import TextInput, Button, Dropdown
 from controllers.wasd import WASDController
 from controllers.smart_controller import SmartController
+from controllers.smart_controller_serial_client import SmartController as SmartControllerSerialClient
 #from controllers.wasd_ml import WASDMLController
 
 # Layout/constants
@@ -58,6 +59,7 @@ class App:
         self.controller_registry = {
             "wasd": WASDController,
             "smart": SmartController,
+            "smart_serial": SmartControllerSerialClient,
             # "wasd_ml": WASDMLController,
         }
         self.selected_controller_id = "wasd"
@@ -91,10 +93,13 @@ class App:
         self._reader_thread.start()
 
     def start_navigation(self):
-        if self.selected_controller_id == "smart":
-            self.active_controller.start_navigation()
-        else:
-            self.show_toast("Switch to Smart Autopilot controller first!", duration=2.0)
+        try:
+            if self.active_controller and hasattr(self.active_controller, 'start_navigation'):
+                self.active_controller.start_navigation()
+            else:
+                self.show_toast("Selected controller cannot start navigation.", duration=2.0)
+        except Exception:
+            pass
 
     def clear_path(self):
         """Clear all paths and stop navigation."""
@@ -122,6 +127,22 @@ class App:
         cls = self.controller_registry.get(controller_id)
         if cls is None:
             return
+        # Gracefully stop and detach previous controller
+        prev = getattr(self, 'active_controller', None)
+        try:
+            if prev is not None:
+                if hasattr(prev, 'stop_navigation'):
+                    try:
+                        prev.stop_navigation()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                if hasattr(prev, 'disconnect'):
+                    try:
+                        prev.disconnect()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         try:
             self.active_controller = cls()
             self.active_controller.attach(self)
@@ -142,7 +163,7 @@ class App:
 
         y = self.controller_dropdown.rect.bottom + 10
 
-        if self.selected_controller_id == "smart":
+        if self.selected_controller_id in ("smart", "smart_serial"):
             self.start_nav_btn = Button(pygame.Rect(16, y, SIDEBAR_W - 32, 34), "Start Navigation", self.start_navigation)
             y += 40
             self.clear_path_btn = Button(pygame.Rect(16, y, SIDEBAR_W - 32, 34), "Clear Path", self.clear_path)
@@ -610,3 +631,9 @@ class App:
 
         self._stop_reader.set()
         pygame.quit()
+
+
+if __name__ == "__main__":
+    # Allow running `python app.py` directly (use `python main.py` otherwise)
+    app = App()
+    app.run()
