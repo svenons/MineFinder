@@ -17,7 +17,7 @@ const createWindow = () => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
 
@@ -204,4 +204,98 @@ ipcMain.handle('app:getPaths', async () => {
     projectRoot: path.join(__dirname, '..'),
     pathFinder: path.join(__dirname, '..', 'PathFinder'),
   };
+});
+
+
+// ==============================================================================
+// Serial Port IPC (Pi connection)
+// ==============================================================================
+let SerialPortLib = null; // { SerialPort, Parsers }
+let serialPort = null;
+let readlineParser = null;
+
+async function ensureSerialLib() {
+  if (SerialPortLib) return true;
+  try {
+    const spMod = await import('serialport');
+    const SerialPort = (spMod && (spMod.SerialPort || spMod.default || spMod));
+    const parserMod = await import('@serialport/parser-readline');
+    const Readline = (parserMod && (parserMod.ReadlineParser || parserMod.default || parserMod));
+    SerialPortLib = { SerialPort, Parsers: { Readline } };
+    return true;
+  } catch (e) {
+    console.warn('[Serial] serialport not available:', e && (e.message || String(e)));
+    return false;
+  }
+}
+
+function broadcastStatus(win, status) {
+  try { win.webContents.send('serial:status', status); } catch {}
+}
+function broadcastLine(win, line) {
+  try { win.webContents.send('serial:line', line); } catch {}
+}
+
+ipcMain.handle('serial:listPorts', async () => {
+  if (!(await ensureSerialLib())) return { success: false, error: 'serialport not installed' };
+  try {
+    const ports = await SerialPortLib.SerialPort.list();
+    return { success: true, ports };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+});
+
+ipcMain.handle('serial:open', async (event, { port, baud }) => {
+  const win = BrowserWindow.getFocusedWindow() || mainWindow;
+  if (!(await ensureSerialLib())) {
+    broadcastStatus(win, { connected: false, error: 'serialport not installed' });
+    return { success: false, error: 'serialport not installed' };
+  }
+  try {
+    if (serialPort) {
+      try { serialPort.close(); } catch {}
+      serialPort = null;
+    }
+    serialPort = new SerialPortLib.SerialPort({ path: port, baudRate: Number(baud) || 9600, autoOpen: true });
+    // Attach parser
+    const ParserCtor = SerialPortLib.Parsers?.Readline || SerialPortLib.Parsers?.ReadlineParser;
+    readlineParser = new ParserCtor({ delimiter: '\n' });
+    serialPort.pipe(readlineParser);
+
+    serialPort.on('open', () => broadcastStatus(win, { connected: true, port, baud }));
+    serialPort.on('error', (err) => broadcastStatus(win, { connected: false, error: err?.message || String(err) }));
+    serialPort.on('close', () => broadcastStatus(win, { connected: false }));
+
+    readlineParser.on('data', (line) => broadcastLine(win, String(line)));
+
+    return { success: true };
+  } catch (e) {
+    broadcastStatus(win, { connected: false, error: e?.message || String(e) });
+    return { success: false, error: e?.message || String(e) };
+  }
+});
+
+ipcMain.handle('serial:close', async () => {
+  try {
+    if (serialPort) {
+      await new Promise((res) => serialPort.close(() => res(null)));
+    }
+    serialPort = null;
+    readlineParser = null;
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+});
+
+ipcMain.handle('serial:writeLine', async (event, { data }) => {
+  if (!serialPort) return { success: false, error: 'not connected' };
+  try {
+    const line = typeof data === 'string' ? data : JSON.stringify(data);
+    await new Promise((res, rej) => serialPort.write(line.endsWith('\n') ? line : line + '\n', (err) => err ? rej(err) : res(null)));
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
 });
