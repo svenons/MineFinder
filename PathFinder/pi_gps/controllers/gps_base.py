@@ -88,6 +88,10 @@ class GPSBaseController:
         self.path_travelled_xy: List[Point] = []
         self.pos_xy: Optional[Point] = None
         self._last_tick_ts: float = time.time()
+        # Telemetry payload control
+        self._last_travel_snapshot_ts: float = 0.0
+        self._travel_snapshot_period: float = 5.0  # seconds between full snapshots
+        self._travel_tail_count: int = 30          # points to include in snapshots
 
     # ---- API from server ----
     def configure(self, origin_gps: Optional[GPS], metres_per_cm: float, simulate: bool, simulated_speed_ms: Optional[float], mine_buffer_m: float, telemetry_hz: float):
@@ -255,14 +259,17 @@ class GPSBaseController:
         proj = self.projector
         if not proj:
             return
-        pos_gps = proj.xy_to_gps(self.pos_xy)
-        planned = [proj.xy_to_gps(p) for p in self.path_xy]
-        travelled = [proj.xy_to_gps(p) for p in self.path_travelled_xy[-2000:]]
+        # Position (rounded to 6 decimals to reduce payload ~11 cm at equator)
+        pos_gps_raw = proj.xy_to_gps(self.pos_xy)
+        pos_gps = {"lat": round(float(pos_gps_raw["lat"]), 6), "lon": round(float(pos_gps_raw["lon"]), 6)}
+        # Send only the recent tail of travelled path to keep payload small
+        tail = self.path_travelled_xy[-self._travel_tail_count:]
+        travelled = [{"lat": round(float(g["lat"]), 6), "lon": round(float(g["lon"]), 6)} for g in (proj.xy_to_gps(p) for p in tail)]
+        # Do not include path_active_gps on every tick (it is sent via path_update)
         self.emit({
             "type": "telemetry",
             "pos_gps": pos_gps,
             "path_travelled_gps": travelled,
-            "path_active_gps": planned,
             "speed_ms": self.simulated_speed_ms,
             "ts": time.time(),
         })

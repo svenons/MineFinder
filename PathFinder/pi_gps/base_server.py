@@ -61,6 +61,18 @@ class PiBaseServer:
         self.reader = threading.Thread(target=self._reader_loop, daemon=True)
         self.reader.start()
 
+        # TX queue with pacing to avoid write timeouts on slow links (e.g., HC12)
+        self.tx_queue: Queue = Queue(maxsize=500)
+        self._tx_stop = threading.Event()
+        self.tx_chunk_bytes: int = 64           # bytes per chunk
+        self.tx_gap_ms: float = 10.0            # inter-chunk gap (ms)
+        self.tx_max_bytes_per_sec: int = 800    # token bucket budget
+        self._tx_tokens: float = float(self.tx_max_bytes_per_sec)
+        self._tx_last_refill: float = time.time()
+        self._tx_timeouts_window: List[float] = []  # timestamps of recent timeouts
+        self._tx_thread = threading.Thread(target=self._tx_loop, daemon=True)
+        self._tx_thread.start()
+
         # Session state
         self.telemetry_hz: float = cfg.telemetry_hz
         self.origin_gps: Optional[Dict[str, float]] = None
@@ -83,13 +95,37 @@ class PiBaseServer:
 
     # ---------------- Serial I/O ----------------
     def _send(self, obj: Dict[str, Any]) -> None:
+        # Enqueue with basic priority; avoid blocking producers.
         try:
-            self.log.debug("TX %s", obj.get("type"))
-            line = json.dumps(obj) + "\n"
-            self.ser.write(line.encode("utf-8"))
+            t = str(obj.get("type"))
+            line = json.dumps(obj, separators=(",", ":")) + "\n"
+            item = {"type": t, "line": line}
+            try:
+                self.tx_queue.put_nowait(item)
+            except Exception:
+                # Queue full: drop lowest priority (telemetry) to make space for control/status
+                if t == "telemetry":
+                    return
+                # Remove oldest telemetry if present
+                try:
+                    tmp = []
+                    dropped = False
+                    while not self.tx_queue.empty():
+                        it = self.tx_queue.get_nowait()
+                        if not dropped and it.get("type") == "telemetry":
+                            dropped = True
+                            continue
+                        tmp.append(it)
+                    for it in tmp:
+                        self.tx_queue.put_nowait(it)
+                    # Try enqueue control message again
+                    self.tx_queue.put_nowait(item)
+                except Exception:
+                    # As a last resort, log and drop
+                    self.log.warning("TX queue overflow; dropping %s", t)
         except Exception as e:
             # Best-effort logging on stderr
-            print(f"[PiBaseServer] write error: {e}")
+            print(f"[PiBaseServer] enqueue error: {e}")
 
     def _reader_loop(self):
         while not self.stop_evt.is_set():
@@ -109,6 +145,82 @@ class PiBaseServer:
                     continue
             except Exception:
                 time.sleep(0.05)
+
+    # ---------------- TX loop with pacing ----------------
+    def _refill_tokens(self):
+        now = time.time()
+        elapsed = now - self._tx_last_refill
+        if elapsed <= 0:
+            return
+        # Refill according to max bytes per sec
+        self._tx_tokens = min(self.tx_max_bytes_per_sec, self._tx_tokens + elapsed * self.tx_max_bytes_per_sec)
+        self._tx_last_refill = now
+
+    def _record_timeout(self):
+        ts = time.time()
+        self._tx_timeouts_window.append(ts)
+        # Keep only last 10 seconds
+        self._tx_timeouts_window = [t for t in self._tx_timeouts_window if ts - t <= 10.0]
+        # Adaptive rate: if ≥3 timeouts in 10s, halve telemetry_hz (floor 0.5)
+        if len(self._tx_timeouts_window) >= 3:
+            new_hz = max(0.5, float(self.telemetry_hz) * 0.5)
+            if new_hz < self.telemetry_hz:
+                self.log.warning("Congestion: reducing telemetry_hz %.2f -> %.2f", self.telemetry_hz, new_hz)
+                self.telemetry_hz = new_hz
+            # Reset window after action
+            self._tx_timeouts_window.clear()
+        # Note last congestion for slow recovery
+        self._last_congestion = ts
+
+    def _tx_loop(self):
+        self._last_congestion = 0.0
+        while not self._tx_stop.is_set():
+            try:
+                item = self.tx_queue.get(timeout=0.05)
+            except Empty:
+                # Slow recovery of telemetry rate toward target when no congestion
+                if getattr(self, "_telemetry_target", None) is None:
+                    self._telemetry_target = float(self.telemetry_hz)
+                if self._last_congestion and (time.time() - self._last_congestion) > 30.0:
+                    if self.telemetry_hz < self._telemetry_target:
+                        self.telemetry_hz = min(self._telemetry_target, self.telemetry_hz + 0.5)
+                    self._last_congestion = 0.0
+                continue
+            try:
+                data = item.get("line", "").encode("utf-8")
+                total = len(data)
+                sent = 0
+                # Chunked write with token bucket pacing
+                while sent < total and not self._tx_stop.is_set():
+                    self._refill_tokens()
+                    if self._tx_tokens <= 0:
+                        time.sleep(0.01)
+                        continue
+                    chunk = min(self.tx_chunk_bytes, total - sent, int(self._tx_tokens))
+                    if chunk <= 0:
+                        time.sleep(0.005)
+                        continue
+                    try:
+                        n = self.ser.write(data[sent:sent+chunk])
+                        if not n:
+                            # Treat as transient; small sleep
+                            time.sleep(0.005)
+                            continue
+                        sent += n
+                        self._tx_tokens -= n
+                        # Inter-chunk gap
+                        if self.tx_gap_ms > 0:
+                            time.sleep(self.tx_gap_ms / 1000.0)
+                    except Exception as e:
+                        # Serial write timeout or other error
+                        self._record_timeout()
+                        # Brief backoff
+                        time.sleep(0.1)
+                        # Attempt to continue sending remaining data
+                        continue
+            except Exception:
+                # Drop malformed item
+                continue
 
     # ---------------- Controller registry ----------------
     def register_controller(self, id_: str, controller_ctor):
@@ -151,6 +263,8 @@ class PiBaseServer:
             self.simulated_speed_ms = msg.get("simulated_speed_ms", self.simulated_speed_ms)
             self.mine_buffer_m = float(msg.get("mine_buffer_m", self.mine_buffer_m))
             self.telemetry_hz = float(msg.get("telemetry_hz", self.telemetry_hz))
+            # Remember target rate for adaptive recovery
+            self._telemetry_target = float(self.telemetry_hz)
             if self.active and hasattr(self.active, "configure"):
                 try:
                     self.active.configure(origin_gps=self.origin_gps, metres_per_cm=self.metres_per_cm, simulate=self.simulate, simulated_speed_ms=self.simulated_speed_ms, mine_buffer_m=self.mine_buffer_m, telemetry_hz=self.telemetry_hz)
@@ -217,8 +331,11 @@ class PiBaseServer:
     def close(self):
         try:
             self.stop_evt.set()
+            self._tx_stop.set()
             if self.reader.is_alive():
                 self.reader.join(timeout=0.5)
+            if hasattr(self, "_tx_thread") and self._tx_thread.is_alive():
+                self._tx_thread.join(timeout=0.5)
         except Exception:
             pass
         try:
