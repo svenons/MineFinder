@@ -104,8 +104,9 @@ export function MissionForm({
           </div>
           {startPosition ? (
             <div style={{ fontSize: '14px', color: '#ccc' }}>
-              ({startPosition.x_cm}cm, {startPosition.y_cm}cm) = ({startPosition.x_m.toFixed(2)}m,{' '}
-              {startPosition.y_m.toFixed(2)}m)
+              {startPosition.gps
+                ? `GPS: ${startPosition.gps.latitude.toFixed(6)}, ${startPosition.gps.longitude.toFixed(6)}`
+                : 'GPS: —'}
             </div>
           ) : (
             <div style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>Not set</div>
@@ -124,8 +125,9 @@ export function MissionForm({
           </div>
           {goalPosition ? (
             <div style={{ fontSize: '14px', color: '#ccc' }}>
-              ({goalPosition.x_cm}cm, {goalPosition.y_cm}cm) = ({goalPosition.x_m.toFixed(2)}m,{' '}
-              {goalPosition.y_m.toFixed(2)}m)
+              {goalPosition.gps
+                ? `GPS: ${goalPosition.gps.latitude.toFixed(6)}, ${goalPosition.gps.longitude.toFixed(6)}`
+                : 'GPS: —'}
             </div>
           ) : (
             <div style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>Not set</div>

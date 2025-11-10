@@ -124,10 +124,9 @@ export function MissionDashboard({
               Start (A)
             </div>
             <div style={{ fontSize: '12px', color: '#ccc' }}>
-              ({mission.start.x_cm}cm, {mission.start.y_cm}cm)
-            </div>
-            <div style={{ fontSize: '12px', color: '#999' }}>
-              ({mission.start.x_m.toFixed(2)}m, {mission.start.y_m.toFixed(2)}m)
+              {mission.start.gps
+                ? `GPS: ${mission.start.gps.latitude.toFixed(6)}, ${mission.start.gps.longitude.toFixed(6)}`
+                : 'GPS: —'}
             </div>
           </div>
 
@@ -136,10 +135,9 @@ export function MissionDashboard({
               Goal (B)
             </div>
             <div style={{ fontSize: '12px', color: '#ccc' }}>
-              ({mission.goal.x_cm}cm, {mission.goal.y_cm}cm)
-            </div>
-            <div style={{ fontSize: '12px', color: '#999' }}>
-              ({mission.goal.x_m.toFixed(2)}m, {mission.goal.y_m.toFixed(2)}m)
+              {mission.goal.gps
+                ? `GPS: ${mission.goal.gps.latitude.toFixed(6)}, ${mission.goal.gps.longitude.toFixed(6)}`
+                : 'GPS: —'}
             </div>
           </div>
         </div>

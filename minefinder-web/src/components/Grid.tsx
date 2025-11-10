@@ -236,9 +236,9 @@ export function Grid({
   const handleMapClickLatLng = useCallback((latlng: L.LatLng) => {
     if (disabled || !coordService) return;
     const pos = coordService.gpsToGrid({ latitude: latlng.lat, longitude: latlng.lng });
-    // Emit click position regardless of current grid size so start/goal can be set anywhere.
+    // Emit click position with absolute GPS so UI can display true coordinates.
     if (onCellClick) {
-      onCellClick({ x_cm: pos.x_cm, y_cm: pos.y_cm, x_m: pos.x_m, y_m: pos.y_m });
+      onCellClick({ x_cm: pos.x_cm, y_cm: pos.y_cm, x_m: pos.x_m, y_m: pos.y_m, gps: { latitude: latlng.lat, longitude: latlng.lng } as any });
     }
   }, [coordService, disabled, onCellClick]);
 
@@ -386,10 +386,9 @@ export function Grid({
         <div style={{ color: '#666', fontSize: '10px' }}>Center: {mapCenter[0].toFixed(4)}, {mapCenter[1].toFixed(4)}</div>
         {hoveredCell && coordService && (
           <div style={{ color: '#ccc', fontSize: '12px', textAlign: 'center' }}>
-            Position: ({hoveredCell.x}cm, {hoveredCell.y}cm) = ({(hoveredCell.x * metres_per_cm).toFixed(2)}m, {(hoveredCell.y * metres_per_cm).toFixed(2)}m)
             {(() => {
               const gps = coordService.gridToGPS(hoveredCell.x, hoveredCell.y);
-              return ` | GPS: ${gps.latitude.toFixed(6)}, ${gps.longitude.toFixed(6)}`;
+              return `Hover GPS: ${gps.latitude.toFixed(6)}, ${gps.longitude.toFixed(6)}`;
             })()}
           </div>
         )}
