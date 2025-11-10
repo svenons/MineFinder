@@ -27,11 +27,19 @@ export interface PositionM {
 /**
  * Combined position with both coordinate systems
  */
+export interface GPSCoordinateUI {
+  latitude: number;
+  longitude: number;
+  altitude_m?: number;
+}
+
 export interface Position {
   x_cm: number;
   y_cm: number;
   x_m: number;
   y_m: number;
+  /** Absolute GPS coordinates for UI display */
+  gps?: GPSCoordinateUI;
 }
 
 // ============================================================================

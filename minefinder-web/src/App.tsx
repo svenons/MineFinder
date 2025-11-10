@@ -349,7 +349,6 @@ function App() {
                 : 'Click to Set Goal (B)'}
             </div>
           )}
-          <div>Grid: {gridConfig.width_cm}×{gridConfig.height_cm}cm</div>
         </div>
       </div>
     </div>
