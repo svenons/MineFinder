@@ -62,6 +62,14 @@ export class CoordinateService {
   private static readonly METERS_PER_DEGREE_LAT = 111320;
 
   /**
+   * Wrap an angle in degrees to the range [-180, 180)
+   */
+  private static wrapTo180(deg: number): number {
+    const x = ((deg + 180) % 360 + 360) % 360 - 180;
+    return x;
+  }
+
+  /**
    * Initialize coordinate service with mission origin point
    * 
    * @param origin - GPS coordinates of grid origin (0,0)
@@ -114,9 +122,11 @@ export class CoordinateService {
     const metersPerDegreeLon = CoordinateService.METERS_PER_DEGREE_LAT * Math.cos(latRad);
     const lonDelta = x_m / metersPerDegreeLon;
 
+    const rawLon = this.origin.longitude + lonDelta;
+    const wrappedLon = CoordinateService.wrapTo180(rawLon);
     return {
       latitude: this.origin.latitude + latDelta,
-      longitude: this.origin.longitude + lonDelta,
+      longitude: wrappedLon,
       altitude_m: this.origin.altitude_m,
     };
   }
@@ -138,10 +148,11 @@ export class CoordinateService {
     const y_m = latDelta * CoordinateService.METERS_PER_DEGREE_LAT;
 
     // Calculate longitude difference with latitude correction
-    const lonDelta = gps.longitude - this.origin.longitude;
+    // Wrap to nearest world copy to avoid unbounded deltas across the dateline
+    const lonDeltaWrapped = CoordinateService.wrapTo180(gps.longitude - this.origin.longitude);
     const latRad = (this.origin.latitude * Math.PI) / 180;
     const metersPerDegreeLon = CoordinateService.METERS_PER_DEGREE_LAT * Math.cos(latRad);
-    const x_m = lonDelta * metersPerDegreeLon;
+    const x_m = lonDeltaWrapped * metersPerDegreeLon;
 
     // Convert meters to centimeters
     const x_cm = x_m / this.metresPerCm;

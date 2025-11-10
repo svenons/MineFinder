@@ -72,7 +72,7 @@ function App() {
   const gridConfig = {
     width_cm: 50,        // 50cm wide grid
     height_cm: 30,       // 30cm tall grid
-    metres_per_cm: 0.1,  // Each cm represents 10cm in real world
+    metres_per_cm: 0.01,  // 1 cm represents 0.01 m (true-to-scale)
   };
 
   // Initialize communications adapter on mount
