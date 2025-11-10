@@ -26,4 +26,22 @@ contextBridge.exposeInMainWorld('electron', {
     save: (filename, content) => 
       ipcRenderer.invoke('file:save', { filename, content }),
   },
+
+  // Serial bridge (Pi connection)
+  serial: {
+    listPorts: () => ipcRenderer.invoke('serial:listPorts'),
+    open: (port, baud) => ipcRenderer.invoke('serial:open', { port, baud }),
+    close: () => ipcRenderer.invoke('serial:close'),
+    writeLine: (data) => ipcRenderer.invoke('serial:writeLine', { data }),
+    onLine: (handler) => {
+      const listener = (_event, line) => handler(line);
+      ipcRenderer.on('serial:line', listener);
+      return () => ipcRenderer.removeListener('serial:line', listener);
+    },
+    onStatus: (handler) => {
+      const listener = (_event, status) => handler(status);
+      ipcRenderer.on('serial:status', listener);
+      return () => ipcRenderer.removeListener('serial:status', listener);
+    }
+  },
 });

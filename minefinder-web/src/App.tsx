@@ -24,6 +24,7 @@ import { Grid } from './components/Grid';
 import { MissionForm } from './components/MissionForm';
 import { AttachmentSelector } from './components/AttachmentSelector';
 import { MissionDashboard } from './components/MissionDashboard';
+import { OptionsPanel } from './components/OptionsPanel';
 
 // Stores (Zustand state management)
 import { useMissionStore } from './stores/missionStore';
@@ -35,8 +36,13 @@ import { CommsAdapterFactory } from './services/comms/BaseAdapter';
 import { MissionProtocolService } from './services/MissionProtocol';
 import { PathFinderService } from './services/PathFinderService';
 import type { TransportConfig, DetectionMessage } from './types/mission.types';
+import { piControllerService } from './services/pi/PiControllerService';
+import { useTelemetryStore } from './stores/telemetryStore';
+import { useSimulationStore } from './stores/simulationStore';
 
 function App() {
+  const tel = useTelemetryStore();
+  const sim = useSimulationStore();
   // Mission state management via Zustand stores
   const {
     activeMission,      // Currently executing mission or null
@@ -138,7 +144,7 @@ function App() {
   };
 
   // Create mission from draft positions and send to hardware
-  const handleCreateMission = () => {
+  const handleCreateMission = async () => {
     if (!draftStart || !draftGoal) return;
 
     // Clear previous mission detections
@@ -152,8 +158,24 @@ function App() {
       metres_per_cm: gridConfig.metres_per_cm,
     });
 
-    // Transmit mission parameters to hardware attachments via comms adapter
-    if (commsAdapter) {
+    // If Pi serial is connected and a controller is selected, send configure and start to Pi
+    const startGps = draftStart.gps;
+    const goalGps = draftGoal.gps;
+    if (useTelemetryStore.getState().connected && useTelemetryStore.getState().selectedControllerId && startGps && goalGps) {
+      try {
+        // Use start as origin if none configured elsewhere
+        await piControllerService.configure({ lat: startGps.latitude, lon: startGps.longitude }, gridConfig.metres_per_cm, {
+          simulate: useSimulationStore.getState().enabled,
+          simulated_speed_ms: useSimulationStore.getState().simulated_speed_ms,
+          mine_buffer_m: useSimulationStore.getState().mine_buffer_m,
+          telemetry_hz: useSimulationStore.getState().telemetry_hz,
+        });
+        await piControllerService.startMission({ lat: startGps.latitude, lon: startGps.longitude }, { lat: goalGps.latitude, lon: goalGps.longitude });
+      } catch (e) {
+        console.warn('Pi mission start failed, falling back to local adapter:', e);
+      }
+    } else if (commsAdapter) {
+      // Transmit mission parameters to hardware attachments via comms adapter (legacy/test)
       const message = MissionProtocolService.createMissionStartMessage(mission);
       commsAdapter.send(message);  // Queued with retry logic in BaseCommsAdapter
     }
@@ -166,8 +188,17 @@ function App() {
   };
 
   // Handle mission start
-  const handleStartMission = () => {
+  const handleStartMission = async () => {
     if (!activeMission) return;
+    const s = activeMission.start.gps;
+    const g = activeMission.goal.gps;
+    if (useTelemetryStore.getState().connected && useTelemetryStore.getState().selectedControllerId && s && g) {
+      try {
+        await piControllerService.startMission({ lat: s.latitude, lon: s.longitude }, { lat: g.latitude, lon: g.longitude });
+      } catch (e) {
+        console.warn('Pi start failed:', e);
+      }
+    }
     startMission(activeMission);
   };
 
@@ -182,6 +213,10 @@ function App() {
   // Handle mission abort
   const handleAbortMission = () => {
     if (!activeMission) return;
+    // Notify Pi server if connected
+    if (useTelemetryStore.getState().connected) {
+      try { piControllerService.stopMission(); } catch {}
+    }
     abortMission(activeMission.mission_id);
     // Reset to start mode for next mission
     setClickMode('start');
@@ -257,8 +292,12 @@ function App() {
           />
         </div>
 
+        <div style={{ borderBottom: '1px solid #333' }}>
+          <OptionsPanel />
+        </div>
+
         <div style={{ padding: '16px', fontSize: '12px', color: '#666' }}>
-          <div>Connection: {isConnected ? '🟢 Connected' : '🔴 Disconnected'}</div>
+          <div>Test Adapter: {isConnected ? '🟢 Connected' : '🔴 Disconnected'}</div>
         </div>
       </div>
 

@@ -13,11 +13,13 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap, useMapEvents, Polyline, CircleMarker, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import type { Position, AggregatedDetection } from '../types/mission.types';
 import { CoordinateService } from '../services/CoordinateService';
+import { useSimulationStore } from '../stores/simulationStore';
+import { useTelemetryStore } from '../stores/telemetryStore';
 
 /**
  * Grid component properties
@@ -233,14 +235,36 @@ export function Grid({
   }, [leafletMap, recalcScale]);
 
   // Convert map click (latlng) to grid coordinates via CoordinateService
+  const simStore = useSimulationStore();
+  const telStore = useTelemetryStore();
+
   const handleMapClickLatLng = useCallback((latlng: L.LatLng) => {
-    if (disabled || !coordService) return;
+    if (!coordService) return;
+
+    // Simulation mode: place/remove simulated mines when placing mode is active
+    if (simStore.enabled && simStore.placingMines) {
+      const gps = { latitude: latlng.lat, longitude: latlng.lng };
+      // Remove if a mine is very close (within ~10px equivalence): check by distance in meters using current scale
+      const existing = simStore.mines.find(m => {
+        const d = CoordinateService.calculateDistance({ latitude: m.gps.latitude, longitude: m.gps.longitude }, gps);
+        return d < Math.max(1.0, m.radius_m * 0.5);
+      });
+      if (existing) {
+        simStore.removeMine(existing.id);
+      } else {
+        simStore.addMine({ gps, radius_m: simStore.mine_buffer_m });
+      }
+      return; // do not set start/goal while placing mines
+    }
+
+    if (disabled) return;
+
     const pos = coordService.gpsToGrid({ latitude: latlng.lat, longitude: latlng.lng });
     // Emit click position with absolute GPS so UI can display true coordinates.
     if (onCellClick) {
       onCellClick({ x_cm: pos.x_cm, y_cm: pos.y_cm, x_m: pos.x_m, y_m: pos.y_m, gps: { latitude: latlng.lat, longitude: latlng.lng } as any });
     }
-  }, [coordService, disabled, onCellClick]);
+  }, [coordService, disabled, onCellClick, simStore]);
 
   // Helpers to convert grid centimeters to container pixels
   const gridCmToPixel = useCallback((x_cm: number, y_cm: number): { x: number; y: number } | null => {
@@ -277,6 +301,16 @@ export function Grid({
         <button onClick={() => setZoom(prev => Math.min(19, prev + 1))} style={{ fontSize: '18px', padding: '4px 8px' }} title="Zoom in satellite">+</button>
         <button onClick={() => setZoom(prev => Math.max(10, prev - 1))} style={{ fontSize: '18px', padding: '4px 8px' }} title="Zoom out satellite">-</button>
         <button onClick={() => { setMapCenter(location); setZoom(19); }} style={{ fontSize: '14px', padding: '4px 8px' }} title="Reset to origin">Reset</button>
+        {/* Simulation mine placement toggle */}
+        {simStore.enabled && (
+          <button
+            onClick={() => simStore.setPlacingMines(!simStore.placingMines)}
+            style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: simStore.placingMines ? '#a60' : '#333', border: '1px solid #aa6', color: '#fff' }}
+            title="Toggle placing simulated mines"
+          >
+            {simStore.placingMines ? 'Placing Mines…' : 'Place Sim Mines'}
+          </button>
+        )}
         <div style={{ fontSize: '10px', color: '#ccc', textAlign: 'center' }}>Z: {zoom}</div>
       </div>
 
@@ -301,6 +335,22 @@ export function Grid({
                 setHoveredCell(null);
               }
             }} />
+
+            {/* Telemetry overlays */}
+            {telStore.plannedPathGps.length > 1 && (
+              <Polyline positions={telStore.plannedPathGps.map(p => [p.latitude, p.longitude] as [number, number])} pathOptions={{ color: '#00ffff', weight: 3 }} />
+            )}
+            {telStore.travelledPathGps.length > 1 && (
+              <Polyline positions={telStore.travelledPathGps.map(p => [p.latitude, p.longitude] as [number, number])} pathOptions={{ color: '#ffff00', weight: 2 }} />
+            )}
+            {telStore.droneGps && (
+              <CircleMarker center={[telStore.droneGps.latitude, telStore.droneGps.longitude]} radius={6} pathOptions={{ color: '#66f', weight: 2 }} />
+            )}
+
+            {/* Simulated mines (render as circles with meter radius) */}
+            {simStore.enabled && simStore.mines.map(m => (
+              <Circle key={m.id} center={[m.gps.latitude, m.gps.longitude]} radius={m.radius_m} pathOptions={{ color: '#ffa500', weight: 1, fillOpacity: 0.1 }} />
+            ))}
           </MapContainer>
         </div>
 
