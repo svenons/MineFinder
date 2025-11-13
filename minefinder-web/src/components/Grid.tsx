@@ -305,17 +305,17 @@ export function Grid({
         {simStore.enabled && (
           <button
             onClick={() => simStore.setPlacingMines(!simStore.placingMines)}
-            style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: simStore.placingMines ? '#a60' : '#333', border: '1px solid #aa6', color: '#fff' }}
+            style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: simStore.placingMines ? '#a60' : 'var(--color-background-elevated)', border: '1px solid #aa6', color: 'var(--color-text)' }}
             title="Toggle placing simulated mines"
           >
             {simStore.placingMines ? 'Placing Mines…' : 'Place Sim Mines'}
           </button>
         )}
-        <div style={{ fontSize: '10px', color: '#ccc', textAlign: 'center' }}>Z: {zoom}</div>
+        <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', textAlign: 'center' }}>Z: {zoom}</div>
       </div>
 
       {/* Grid canvas with satellite underlay */}
-      <div className="grid-canvas" style={{ width: canvasWidth, height: canvasHeight, position: 'relative', border: '2px solid #333', cursor: disabled ? 'not-allowed' : 'crosshair', overflow: 'hidden' }}
+      <div className="grid-canvas" style={{ width: canvasWidth, height: canvasHeight, position: 'relative', border: '2px solid var(--color-border-subtle)', cursor: disabled ? 'not-allowed' : 'crosshair', overflow: 'hidden' }}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoveredCell(null)}
       >

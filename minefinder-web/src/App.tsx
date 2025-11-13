@@ -25,11 +25,13 @@ import { MissionForm } from './components/MissionForm';
 import { AttachmentSelector } from './components/AttachmentSelector';
 import { MissionDashboard } from './components/MissionDashboard';
 import { OptionsPanel } from './components/OptionsPanel';
+import { ThemeToggle } from './components/ThemeToggle';
 
 // Stores (Zustand state management)
 import { useMissionStore } from './stores/missionStore';
 import { useDetectionStore } from './stores/detectionStore';
 import { useAttachmentStore } from './stores/attachmentStore';
+import { useThemeStore } from './stores/themeStore';
 
 // Services
 import { CommsAdapterFactory } from './services/comms/BaseAdapter';
@@ -43,6 +45,7 @@ import { useSimulationStore } from './stores/simulationStore';
 function App() {
   const tel = useTelemetryStore();
   const sim = useSimulationStore();
+  const { theme } = useThemeStore();
   // Mission state management via Zustand stores
   const {
     activeMission,      // Currently executing mission or null
@@ -244,29 +247,39 @@ function App() {
     }
   };
 
+  // Apply theme to document root
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   return (
-    <div className="app-container" style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#1a1a1a', color: '#fff' }}>
+    <div className="app-container" style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}>
       {/* Left Sidebar */}
       <div
         className="sidebar"
         style={{
           width: '320px',
           minWidth: '320px',
-          borderRight: '1px solid #333',
+          borderRight: '1px solid var(--color-border-subtle)',
           display: 'flex',
           flexDirection: 'column',
           overflowY: 'auto',
           overflowX: 'hidden',
         }}
       >
-        <div style={{ padding: '16px', borderBottom: '1px solid #333' }}>
-          <h1 style={{ margin: 0, fontSize: '24px' }}>MineFinder</h1>
-          <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-            Mission Controller
+        <div style={{ padding: '16px', borderBottom: '1px solid var(--color-border-subtle)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '24px' }}>MineFinder</h1>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-disabled)', marginTop: '4px' }}>
+                Mission Controller
+              </div>
+            </div>
+            <ThemeToggle />
           </div>
         </div>
 
-        <div style={{ borderBottom: '1px solid #333' }}>
+        <div style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
           <MissionForm
             startPosition={draftStart}
             goalPosition={draftGoal}
@@ -283,7 +296,7 @@ function App() {
           />
         </div>
 
-        <div style={{ borderBottom: '1px solid #333' }}>
+        <div style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
           <AttachmentSelector
             attachments={attachments}
             selectedIds={selectedAttachmentIds}
@@ -292,11 +305,11 @@ function App() {
           />
         </div>
 
-        <div style={{ borderBottom: '1px solid #333' }}>
+        <div style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
           <OptionsPanel />
         </div>
 
-        <div style={{ padding: '16px', fontSize: '12px', color: '#666' }}>
+        <div style={{ padding: '16px', fontSize: '12px', color: 'var(--color-text-disabled)' }}>
           <div>Test Adapter: {isConnected ? '🟢 Connected' : '🔴 Disconnected'}</div>
         </div>
       </div>
@@ -312,7 +325,7 @@ function App() {
         }}
       >
         {/* Top Bar - Mission Dashboard */}
-        <div style={{ padding: '16px', borderBottom: '1px solid #333' }}>
+        <div style={{ padding: '16px', borderBottom: '1px solid var(--color-border-subtle)' }}>
           <MissionDashboard
             mission={activeMission}
             detectionCount={detections.length}
@@ -352,12 +365,12 @@ function App() {
         <div
           style={{
             padding: '12px 16px',
-            borderTop: '1px solid #333',
+            borderTop: '1px solid var(--color-border-subtle)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             fontSize: '12px',
-            color: '#999',
+            color: 'var(--color-text-muted)',
           }}
         >
           <div>Detections: {detections.length}</div>
@@ -367,18 +380,18 @@ function App() {
               style={{
                 padding: '6px 12px',
                 backgroundColor: activeMission && activeMission.status === 'active' 
-                  ? '#1a1a1a' 
+                  ? 'var(--color-background-elevated)' 
                   : clickMode === 'start' ? '#0a2a0a' : '#0a1a2a',
                 border: `1px solid ${
                   activeMission && activeMission.status === 'active'
-                    ? '#666'
-                    : clickMode === 'start' ? '#0f0' : '#06f'
+                    ? 'var(--color-text-disabled)'
+                    : clickMode === 'start' ? 'var(--color-success)' : 'var(--color-info)'
                 }`,
                 borderRadius: '4px',
                 fontWeight: 'bold',
                 color: activeMission && activeMission.status === 'active'
-                  ? '#666'
-                  : clickMode === 'start' ? '#0f0' : '#06f',
+                  ? 'var(--color-text-disabled)'
+                  : clickMode === 'start' ? 'var(--color-success)' : 'var(--color-info)',
               }}
             >
               {activeMission && activeMission.status === 'active'

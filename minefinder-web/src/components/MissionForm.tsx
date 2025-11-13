@@ -52,7 +52,7 @@ export function MissionForm({
 
       {/* Mode selector */}
       <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '8px', color: '#ccc' }}>
+        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>
           Click mode:
         </label>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -62,11 +62,12 @@ export function MissionForm({
             style={{
               flex: 1,
               padding: '8px',
-              backgroundColor: mode === 'start' ? '#0a0' : '#333',
-              border: mode === 'start' ? '2px solid #0f0' : '1px solid #555',
-              color: '#fff',
+              backgroundColor: mode === 'start' ? '#e8f5e9' : 'var(--color-background-elevated)',
+              border: mode === 'start' ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
+              color: mode === 'start' ? 'var(--color-success)' : 'var(--color-text)',
               cursor: disabled ? 'not-allowed' : 'pointer',
               opacity: disabled ? 0.5 : 1,
+              fontWeight: mode === 'start' ? 'bold' : 'normal',
             }}
           >
             {mode === 'start' ? '🟢 ' : ''}Set Start (A)
@@ -77,11 +78,12 @@ export function MissionForm({
             style={{
               flex: 1,
               padding: '8px',
-              backgroundColor: mode === 'goal' ? '#06a' : '#333',
-              border: mode === 'goal' ? '2px solid #06f' : '1px solid #555',
-              color: '#fff',
+              backgroundColor: mode === 'goal' ? '#e3f2fd' : 'var(--color-background-elevated)',
+              border: mode === 'goal' ? '2px solid var(--color-info)' : '1px solid var(--color-border)',
+              color: mode === 'goal' ? 'var(--color-info)' : 'var(--color-text)',
               cursor: disabled ? 'not-allowed' : 'pointer',
               opacity: disabled ? 0.5 : 1,
+              fontWeight: mode === 'goal' ? 'bold' : 'normal',
             }}
           >
             {mode === 'goal' ? '🔵 ' : ''}Set Goal (B)
@@ -94,43 +96,43 @@ export function MissionForm({
         <div
           style={{
             padding: '12px',
-            backgroundColor: '#2a2a2a',
+            backgroundColor: 'var(--color-background-hover)',
             borderRadius: '4px',
             marginBottom: '8px',
           }}
         >
-          <div style={{ fontWeight: 'bold', color: '#0f0', marginBottom: '4px' }}>
+          <div style={{ fontWeight: 'bold', color: 'var(--color-success)', marginBottom: '4px' }}>
             Start Position (A):
           </div>
           {startPosition ? (
-            <div style={{ fontSize: '14px', color: '#ccc' }}>
+            <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>
               {startPosition.gps
                 ? `GPS: ${startPosition.gps.latitude.toFixed(6)}, ${startPosition.gps.longitude.toFixed(6)}`
                 : 'GPS: —'}
             </div>
           ) : (
-            <div style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>Not set</div>
+            <div style={{ fontSize: '14px', color: 'var(--color-text-disabled)', fontStyle: 'italic' }}>Not set</div>
           )}
         </div>
 
         <div
           style={{
             padding: '12px',
-            backgroundColor: '#2a2a2a',
+            backgroundColor: 'var(--color-background-hover)',
             borderRadius: '4px',
           }}
         >
-          <div style={{ fontWeight: 'bold', color: '#06f', marginBottom: '4px' }}>
+          <div style={{ fontWeight: 'bold', color: 'var(--color-info)', marginBottom: '4px' }}>
             Goal Position (B):
           </div>
           {goalPosition ? (
-            <div style={{ fontSize: '14px', color: '#ccc' }}>
+            <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>
               {goalPosition.gps
                 ? `GPS: ${goalPosition.gps.latitude.toFixed(6)}, ${goalPosition.gps.longitude.toFixed(6)}`
                 : 'GPS: —'}
             </div>
           ) : (
-            <div style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>Not set</div>
+            <div style={{ fontSize: '14px', color: 'var(--color-text-disabled)', fontStyle: 'italic' }}>Not set</div>
           )}
         </div>
       </div>
@@ -143,9 +145,9 @@ export function MissionForm({
           style={{
             flex: 1,
             padding: '10px',
-            backgroundColor: '#444',
-            border: '1px solid #666',
-            color: '#fff',
+            backgroundColor: 'var(--color-background-elevated)',
+            border: '1px solid var(--color-border)',
+            color: 'var(--color-text)',
             cursor: disabled || (!startPosition && !goalPosition) ? 'not-allowed' : 'pointer',
             opacity: disabled || (!startPosition && !goalPosition) ? 0.5 : 1,
           }}
@@ -158,9 +160,9 @@ export function MissionForm({
           style={{
             flex: 2,
             padding: '10px',
-            backgroundColor: canCreate ? '#0a0' : '#333',
-            border: canCreate ? '2px solid #0f0' : '1px solid #555',
-            color: '#fff',
+            backgroundColor: canCreate ? '#e8f5e9' : 'var(--color-background-elevated)',
+            border: canCreate ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
+            color: canCreate ? 'var(--color-success)' : 'var(--color-text)',
             cursor: canCreate ? 'pointer' : 'not-allowed',
             opacity: canCreate ? 1 : 0.5,
             fontWeight: 'bold',
@@ -175,13 +177,14 @@ export function MissionForm({
         style={{
           marginTop: '16px',
           padding: '12px',
-          backgroundColor: '#1a1a1a',
+          backgroundColor: 'var(--color-background-elevated)',
           borderRadius: '4px',
           fontSize: '12px',
-          color: '#999',
+          color: 'var(--color-text-secondary)',
+          border: '1px solid var(--color-border)',
         }}
       >
-        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Instructions:</div>
+        <div style={{ fontWeight: 'bold', marginBottom: '8px', color: 'var(--color-text)' }}>Instructions:</div>
         <ol style={{ margin: 0, paddingLeft: '20px' }}>
           <li>Select "Set Start (A)" or "Set Goal (B)" mode</li>
           <li>Click on the grid to set the position</li>

@@ -80,7 +80,7 @@ export function AttachmentSelector({
       </div>
 
       {attachments.length === 0 ? (
-        <div style={{ color: '#666', fontStyle: 'italic' }}>No attachments available</div>
+        <div style={{ color: 'var(--color-text-disabled)', fontStyle: 'italic' }}>No attachments available</div>
       ) : (
         <div className="attachment-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {attachments.map((attachment) => (
@@ -92,7 +92,7 @@ export function AttachmentSelector({
                 alignItems: 'center',
                 gap: '12px',
                 padding: '12px',
-                backgroundColor: '#2a2a2a',
+                backgroundColor: 'var(--color-background-hover)',
                 borderRadius: '4px',
                 cursor: attachment.status === 'offline' ? 'not-allowed' : 'pointer',
                 opacity: attachment.status === 'offline' ? 0.5 : 1,
@@ -111,7 +111,7 @@ export function AttachmentSelector({
 
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{attachment.id}</div>
-                <div style={{ fontSize: '12px', color: '#999' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                   {attachment.specs.model} • {attachment.type.replace(/_/g, ' ')}
                 </div>
               </div>
@@ -128,14 +128,14 @@ export function AttachmentSelector({
               />
 
               {attachment.battery !== undefined && (
-                <div style={{ fontSize: '12px', color: '#ccc' }}>🔋 {attachment.battery}%</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>🔋 {attachment.battery}%</div>
               )}
             </label>
           ))}
         </div>
       )}
 
-      <div style={{ marginTop: '16px', fontSize: '12px', color: '#999' }}>
+      <div style={{ marginTop: '16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
         {selectedIds.size} attachment{selectedIds.size !== 1 ? 's' : ''} selected •{' '}
         {attachments.filter((a) => a.status === 'online').length} online
       </div>
