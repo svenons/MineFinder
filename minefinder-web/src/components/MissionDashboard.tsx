@@ -43,11 +43,11 @@ export function MissionDashboard({
         className="mission-dashboard"
         style={{
           padding: '16px',
-          backgroundColor: '#2a2a2a',
+          backgroundColor: 'var(--color-background-hover)',
           borderRadius: '4px',
         }}
       >
-        <div style={{ color: '#666', fontStyle: 'italic', textAlign: 'center' }}>
+        <div style={{ color: 'var(--color-text-disabled)', fontStyle: 'italic', textAlign: 'center' }}>
           No active mission
         </div>
       </div>
@@ -82,7 +82,7 @@ export function MissionDashboard({
       className="mission-dashboard"
       style={{
         padding: '16px',
-        backgroundColor: '#2a2a2a',
+        backgroundColor: 'var(--color-background-hover)',
         borderRadius: '4px',
       }}
     >
@@ -104,10 +104,10 @@ export function MissionDashboard({
 
       {/* Mission details */}
       <div style={{ marginBottom: '16px' }}>
-        <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
+        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
           Mission ID: {mission.mission_id}
         </div>
-        <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
+        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
           Created: {formatTimestamp(mission.created_at)}
         </div>
 
@@ -119,22 +119,22 @@ export function MissionDashboard({
             marginTop: '12px',
           }}
         >
-          <div style={{ backgroundColor: '#1a1a1a', padding: '12px', borderRadius: '4px' }}>
-            <div style={{ color: '#0f0', fontWeight: 'bold', marginBottom: '4px' }}>
+          <div style={{ backgroundColor: 'var(--color-background-elevated)', padding: '12px', borderRadius: '4px' }}>
+            <div style={{ color: 'var(--color-success)', fontWeight: 'bold', marginBottom: '4px' }}>
               Start (A)
             </div>
-            <div style={{ fontSize: '12px', color: '#ccc' }}>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
               {mission.start.gps
                 ? `GPS: ${mission.start.gps.latitude.toFixed(6)}, ${mission.start.gps.longitude.toFixed(6)}`
                 : 'GPS: —'}
             </div>
           </div>
 
-          <div style={{ backgroundColor: '#1a1a1a', padding: '12px', borderRadius: '4px' }}>
-            <div style={{ color: '#06f', fontWeight: 'bold', marginBottom: '4px' }}>
+          <div style={{ backgroundColor: 'var(--color-background-elevated)', padding: '12px', borderRadius: '4px' }}>
+            <div style={{ color: 'var(--color-info)', fontWeight: 'bold', marginBottom: '4px' }}>
               Goal (B)
             </div>
-            <div style={{ fontSize: '12px', color: '#ccc' }}>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
               {mission.goal.gps
                 ? `GPS: ${mission.goal.gps.latitude.toFixed(6)}, ${mission.goal.gps.longitude.toFixed(6)}`
                 : 'GPS: —'}
@@ -144,10 +144,10 @@ export function MissionDashboard({
       </div>
 
       {/* Detection statistics */}
-      <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+      <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: 'var(--color-background-elevated)', borderRadius: '4px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ color: '#ccc' }}>Detections:</span>
-          <span style={{ fontWeight: 'bold', color: detectionCount > 0 ? '#f00' : '#0f0' }}>
+          <span style={{ color: 'var(--color-text-secondary)' }}>Detections:</span>
+          <span style={{ fontWeight: 'bold', color: detectionCount > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
             {detectionCount}
           </span>
         </div>

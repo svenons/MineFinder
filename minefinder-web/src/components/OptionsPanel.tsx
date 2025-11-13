@@ -90,13 +90,13 @@ export function OptionsPanel() {
     <div style={{ padding: '16px' }}>
       <h3 style={{ marginTop: 0 }}>Options</h3>
 
-      <div style={{ marginBottom: 12, fontSize: 12, color: '#999' }}>
+      <div style={{ marginBottom: 12, fontSize: 12, color: 'var(--color-text-muted)' }}>
         Serial Connection to Pi Server
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
         <div style={{ gridColumn: '1 / span 2' }}>
-          <label style={{ fontSize: 12, color: '#ccc' }}>Port</label>
+          <label style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Port</label>
           <div style={{ display: 'flex', gap: 8 }}>
             <select value={port} onChange={(e) => setPort(e.target.value)} style={{ flex: 1 }}>
               {ports.map((p, idx) => (
@@ -112,7 +112,7 @@ export function OptionsPanel() {
             </button>
           </div>
           <div style={{ marginTop: 6 }}>
-            <label style={{ fontSize: 12, color: '#aaa' }}>Or enter path manually</label>
+            <label style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Or enter path manually</label>
             <input type="text" placeholder="/dev/ttyUSB0" value={port} onChange={(e) => setPort(e.target.value)} style={{ width: '100%' }} />
           </div>
         </div>
@@ -124,21 +124,21 @@ export function OptionsPanel() {
 
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
           {!tel.connected ? (
-            <button onClick={connect} style={{ flex: 1, padding: 8, backgroundColor: '#0a0', border: '2px solid #0f0', color: '#fff' }}>Connect</button>
+            <button onClick={connect} style={{ flex: 1, padding: 8, backgroundColor: '#0a0', border: '2px solid var(--color-success)', color: 'var(--color-text)' }}>Connect</button>
           ) : (
-            <button onClick={disconnect} style={{ flex: 1, padding: 8, backgroundColor: '#a00', border: '2px solid #f00', color: '#fff' }}>Disconnect</button>
+            <button onClick={disconnect} style={{ flex: 1, padding: 8, backgroundColor: '#a00', border: '2px solid var(--color-danger)', color: 'var(--color-text)' }}>Disconnect</button>
           )}
         </div>
       </div>
 
-      <div style={{ fontSize: 12, color: tel.connected ? '#0f0' : '#f66', marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: tel.connected ? 'var(--color-success)' : 'var(--color-danger)', marginBottom: 12 }}>
         {tel.connected ? `Connected (${tel.port}@${tel.baud})` : 'Not connected'}
       </div>
 
-      <div style={{ borderTop: '1px solid #333', margin: '12px 0' }} />
+      <div style={{ borderTop: '1px solid var(--color-border-subtle)', margin: '12px 0' }} />
 
       <div style={{ marginBottom: 8 }}>
-        <label style={{ fontSize: 12, color: '#ccc' }}>Controller</label>
+        <label style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Controller</label>
         <select
           value={tel.selectedControllerId || ''}
           onChange={(e) => piControllerService.selectController(e.target.value)}
@@ -152,7 +152,7 @@ export function OptionsPanel() {
         </select>
       </div>
 
-      <div style={{ borderTop: '1px solid #333', margin: '12px 0' }} />
+      <div style={{ borderTop: '1px solid var(--color-border-subtle)', margin: '12px 0' }} />
 
       <div>
         <div style={{ marginBottom: 8, fontWeight: 'bold' }}>Simulation</div>
@@ -162,15 +162,15 @@ export function OptionsPanel() {
             Enable Simulation
           </label>
           <div>
-            <label style={{ fontSize: 12, color: '#ccc' }}>Speed (m/s)</label>
+            <label style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Speed (m/s)</label>
             <input type="number" value={sim.simulated_speed_ms} min={0} step={0.1} onChange={(e) => sim.setSimulatedSpeed(parseFloat(e.target.value || '0'))} style={{ width: '100%' }} />
           </div>
           <div>
-            <label style={{ fontSize: 12, color: '#ccc' }}>Mine buffer (m)</label>
+            <label style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Mine buffer (m)</label>
             <input type="number" value={sim.mine_buffer_m} min={0} step={0.5} onChange={(e) => sim.setMineBuffer(parseFloat(e.target.value || '10'))} style={{ width: '100%' }} />
           </div>
           <div>
-            <label style={{ fontSize: 12, color: '#ccc' }}>Telemetry (Hz)</label>
+            <label style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Telemetry (Hz)</label>
             <input type="number" value={sim.telemetry_hz} min={0.2} step={0.2} onChange={(e) => sim.setTelemetryHz(parseFloat(e.target.value || '5'))} style={{ width: '100%' }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
