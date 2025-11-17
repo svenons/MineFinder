@@ -14,12 +14,13 @@ export interface SimulatedMine {
   gps: GPSPoint;
   /** Radius in meters for avoidance buffer (default 10m) */
   radius_m: number;
+  detected?: boolean;  // True if drone has detected this mine
 }
 
 interface SimulationState {
   enabled: boolean;
   simulated_speed_ms: number; // flight speed for simulation on the Pi
-  mine_buffer_m: number;      // default 10m (configurable)
+  mine_buffer_m: number;      // default 3m (configurable)
   telemetry_hz: number;       // desired telemetry rate (Hz)
 
   // UI state: placing mines mode
@@ -37,12 +38,13 @@ interface SimulationState {
   addMine: (mine: Omit<SimulatedMine, 'id'>) => void;
   removeMine: (id: string) => void;
   clearMines: () => void;
+  markMineDetected: (gps: GPSPoint) => void;  // Mark mine as detected (changes color)
 }
 
 export const useSimulationStore = create<SimulationState>((set, get) => ({
   enabled: false,
   simulated_speed_ms: 1.5,
-  mine_buffer_m: 10,
+  mine_buffer_m: 2,  // 2m total safe zone (1.5m circumvent + 0.5m path)
   telemetry_hz: 5,
 
   placingMines: false,
@@ -61,4 +63,17 @@ export const useSimulationStore = create<SimulationState>((set, get) => ({
   },
   removeMine: (id) => set((state) => ({ mines: state.mines.filter(m => m.id !== id) })),
   clearMines: () => set({ mines: [] }),
+  
+  markMineDetected: (gps: GPSPoint) => set((state) => ({
+    mines: state.mines.map(mine => {
+      // Check if this mine matches the detected GPS (within 5m tolerance)
+      const latDiff = Math.abs(mine.gps.latitude - gps.latitude);
+      const lonDiff = Math.abs(mine.gps.longitude - gps.longitude);
+      const distance = Math.sqrt(latDiff * latDiff * 111320 * 111320 + lonDiff * lonDiff * 111320 * 111320);
+      if (distance < 5) {
+        return { ...mine, detected: true };
+      }
+      return mine;
+    })
+  })),
 }));

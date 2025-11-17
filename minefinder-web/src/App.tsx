@@ -148,7 +148,11 @@ function App() {
 
   // Create mission from draft positions and send to hardware
   const handleCreateMission = async () => {
-    if (!draftStart || !draftGoal) return;
+    console.log('[App] *** handleCreateMission CALLED ***', { draftStart, draftGoal });
+    if (!draftStart || !draftGoal) {
+      console.log('[App] Missing start or goal, aborting');
+      return;
+    }
 
     // Clear previous mission detections
     clearDetections();
@@ -164,7 +168,16 @@ function App() {
     // If Pi serial is connected and a controller is selected, send configure and start to Pi
     const startGps = draftStart.gps;
     const goalGps = draftGoal.gps;
+    
+    console.log('[App] handleCreateMission - checking conditions:', {
+      connected: useTelemetryStore.getState().connected,
+      selectedControllerId: useTelemetryStore.getState().selectedControllerId,
+      hasStartGps: !!startGps,
+      hasGoalGps: !!goalGps,
+    });
+    
     if (useTelemetryStore.getState().connected && useTelemetryStore.getState().selectedControllerId && startGps && goalGps) {
+      console.log('[App] Conditions met, sending to Pi');
       try {
         // Use start as origin if none configured elsewhere
         await piControllerService.configure({ lat: startGps.latitude, lon: startGps.longitude }, gridConfig.metres_per_cm, {
@@ -205,12 +218,19 @@ function App() {
     startMission(activeMission);
   };
 
-  // Handle mission complete
+  // Handle mission complete/save
   const handleCompleteMission = () => {
     if (!activeMission) return;
-    completeMission(activeMission.mission_id);
-    // Reset to start mode for next mission
-    setClickMode('start');
+    
+    // If already completed, this is a 'Save' action - clear the mission
+    if (activeMission.status === 'completed') {
+      // Mission is saved in history, just clear the active slot
+      useMissionStore.setState({ activeMission: null, draftStart: null, draftGoal: null });
+      setClickMode('start');
+    } else {
+      // Manual completion (if nav_done didn't fire for some reason)
+      completeMission(activeMission.mission_id);
+    }
   };
 
   // Handle mission abort

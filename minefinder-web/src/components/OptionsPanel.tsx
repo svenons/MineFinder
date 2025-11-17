@@ -167,7 +167,7 @@ export function OptionsPanel() {
           </div>
           <div>
             <label style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Mine buffer (m)</label>
-            <input type="number" value={sim.mine_buffer_m} min={0} step={0.5} onChange={(e) => sim.setMineBuffer(parseFloat(e.target.value || '10'))} style={{ width: '100%' }} />
+            <input type="number" value={sim.mine_buffer_m} min={0} step={0.5} onChange={(e) => sim.setMineBuffer(parseFloat(e.target.value || '3'))} style={{ width: '100%' }} />
           </div>
           <div>
             <label style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Telemetry (Hz)</label>

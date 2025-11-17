@@ -98,7 +98,7 @@ export interface MissionParameters {
   simulation_enabled?: boolean;
   /** Simulated flight speed in m/s (sent to Pi server when simulation is on) */
   simulated_speed_ms?: number;
-  /** Mine buffer radius in meters for avoidance (default 10m) */
+  /** Mine buffer radius in meters for avoidance (default 3m) */
   mine_buffer_m?: number;
   /** Telemetry update rate in Hz (server hint; e.g., 2-10Hz) */
   telemetry_hz?: number;

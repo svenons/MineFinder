@@ -15,6 +15,7 @@ import logging
 from base_server import PiBaseServer, ServerConfig
 from controllers.gps_sim import GPSSimController
 from controllers.gps_real import GPSRealController
+from controllers.gps_sim_astar import GPSSimWithPathfinding
 
 
 def parse_args(argv=None):
@@ -47,6 +48,7 @@ def main(argv=None):
     # Register controllers
     server.register_controller("gps_sim", GPSSimController)
     server.register_controller("gps_real", GPSRealController)
+    server.register_controller("gps_sim_astar", GPSSimWithPathfinding)
     log.info("Registered controllers: %s", list(server.controllers.keys()))
 
     try:

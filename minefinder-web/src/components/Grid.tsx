@@ -349,7 +349,16 @@ export function Grid({
 
             {/* Simulated mines (render as circles with meter radius) */}
             {simStore.enabled && simStore.mines.map(m => (
-              <Circle key={m.id} center={[m.gps.latitude, m.gps.longitude]} radius={m.radius_m} pathOptions={{ color: '#ffa500', weight: 1, fillOpacity: 0.1 }} />
+              <Circle 
+                key={m.id} 
+                center={[m.gps.latitude, m.gps.longitude]} 
+                radius={m.radius_m} 
+                pathOptions={{ 
+                  color: m.detected ? '#ff0000' : '#ffa500',  // Red if detected, orange if not
+                  weight: m.detected ? 2 : 1, 
+                  fillOpacity: m.detected ? 0.3 : 0.1 
+                }} 
+              />
             ))}
           </MapContainer>
         </div>

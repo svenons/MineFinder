@@ -2,6 +2,9 @@ import { piSerialBridge } from './PiSerialBridge';
 import type { InboundMsg, OutboundMsg, GPSPoint } from './types';
 import { useTelemetryStore } from '../../stores/telemetryStore';
 import { useSimulationStore } from '../../stores/simulationStore';
+import { useMissionStore } from '../../stores/missionStore';
+import { useDetectionStore } from '../../stores/detectionStore';
+import type { DetectionEvent } from '../../types/mission.types';
 
 /**
  * PiControllerService
@@ -13,6 +16,9 @@ export class PiControllerService {
   private connected = false;
   private lineUnsub: (() => void) | null = null;
   private statusUnsub: (() => void) | null = null;
+  private origin: { lat: number; lon: number } | null = null;
+  private metresPerCm: number = 0.01;  // Default 1cm = 0.01m
+  private readonly METERS_PER_DEGREE_LAT = 111320;  // Earth radius approximation
 
   async connect(port: string, baud: number = 9600) {
     // Subscribe to status & lines first
@@ -54,6 +60,10 @@ export class PiControllerService {
     mine_buffer_m?: number;
     telemetry_hz?: number;
   }) {
+    // Store for GPS to grid conversion
+    this.origin = { lat: origin.lat, lon: origin.lon };
+    this.metresPerCm = metres_per_cm;
+    
     const simulate = !!options?.simulate;
     await this.send({
       type: 'configure',
@@ -74,7 +84,22 @@ export class PiControllerService {
   }
 
   async startMission(start: GPSPoint, goal: GPSPoint) {
+    console.log('[PiControllerService] startMission called with start:', start, 'goal:', goal);
+    
+    // Always sync simulation mines before starting mission (in case user added/removed mines)
+    const selectedId = useTelemetryStore.getState().selectedControllerId;
+    const simulate = useSimulationStore.getState().enabled;
+    if (selectedId && simulate) {
+      const mines = useSimulationStore.getState().mines;
+      const mines_gps = mines.map(m => ({ lat: m.gps.latitude, lon: m.gps.longitude, radius_m: m.radius_m }));
+      console.log('[PiControllerService] Sending sim_mines with', mines_gps.length, 'mines');
+      await this.send({ type: 'sim_mines', mines_gps });
+      console.log('[PiControllerService] sim_mines sent successfully');
+    }
+    
+    console.log('[PiControllerService] Sending mission_start');
     await this.send({ type: 'mission_start', start_gps: start, goal_gps: goal });
+    console.log('[PiControllerService] mission_start sent successfully');
   }
 
   async stopMission() {
@@ -126,8 +151,60 @@ export class PiControllerService {
         useTelemetryStore.getState().ingestTelemetry(frame);
         break;
       }
+      case 'mine_detected': {
+        const m = msg as any;
+        if (m.at_gps && this.origin) {
+          // Convert GPS to grid coordinates
+          const gpsLat = Number(m.at_gps.lat);
+          const gpsLon = Number(m.at_gps.lon);
+          
+          // Calculate meters from origin
+          const latDelta = gpsLat - this.origin.lat;
+          const y_m = latDelta * this.METERS_PER_DEGREE_LAT;
+          
+          const lonDelta = gpsLon - this.origin.lon;
+          const latRad = (this.origin.lat * Math.PI) / 180;
+          const metersPerDegreeLon = this.METERS_PER_DEGREE_LAT * Math.cos(latRad);
+          const x_m = lonDelta * metersPerDegreeLon;
+          
+          // Convert to cm
+          const x_cm = Math.round(x_m / this.metresPerCm);
+          const y_cm = Math.round(y_m / this.metresPerCm);
+          
+          const detectionEvent: DetectionEvent = {
+            position: {
+              x_cm,
+              y_cm,
+              x_m,
+              y_m,
+              gps: {
+                latitude: gpsLat,
+                longitude: gpsLon,
+              },
+            },
+            confidence: typeof m.confidence === 'number' ? m.confidence : 0.95,
+            sensor_id: m.mine_id || 'pi_sensor',
+            timestamp: Date.now(),
+          };
+          
+          console.log('[PiControllerService] Mine detected:', detectionEvent);
+          useDetectionStore.getState().processDetection(detectionEvent);
+          
+          // Mark the simulated mine as detected (changes color from orange to red)
+          useSimulationStore.getState().markMineDetected({
+            latitude: gpsLat,
+            longitude: gpsLon,
+          });
+        }
+        break;
+      }
       case 'nav_done': {
-        // Could set a status flag or toast in UI; for now noop.
+        // Mission navigation completed - automatically mark as completed
+        const activeMission = useMissionStore.getState().getActiveMission();
+        if (activeMission) {
+          console.log('[PiControllerService] Navigation complete, auto-completing mission:', activeMission.mission_id);
+          useMissionStore.getState().completeMission(activeMission.mission_id);
+        }
         break;
       }
       case 'status':
