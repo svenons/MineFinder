@@ -262,9 +262,8 @@ class GPSBaseController:
         # Position (rounded to 6 decimals to reduce payload ~11 cm at equator)
         pos_gps_raw = proj.xy_to_gps(self.pos_xy)
         pos_gps = {"lat": round(float(pos_gps_raw["lat"]), 6), "lon": round(float(pos_gps_raw["lon"]), 6)}
-        # Send only the recent tail of travelled path to keep payload small
-        tail = self.path_travelled_xy[-self._travel_tail_count:]
-        travelled = [{"lat": round(float(g["lat"]), 6), "lon": round(float(g["lon"]), 6)} for g in (proj.xy_to_gps(p) for p in tail)]
+        # Send FULL travelled path to show complete trail with backtracks
+        travelled = [{"lat": round(float(g["lat"]), 6), "lon": round(float(g["lon"]), 6)} for g in (proj.xy_to_gps(p) for p in self.path_travelled_xy)]
         # Do not include path_active_gps on every tick (it is sent via path_update)
         self.emit({
             "type": "telemetry",

@@ -267,7 +267,11 @@ ipcMain.handle('serial:open', async (event, { port, baud }) => {
     serialPort.on('error', (err) => broadcastStatus(win, { connected: false, error: err?.message || String(err) }));
     serialPort.on('close', () => broadcastStatus(win, { connected: false }));
 
-    readlineParser.on('data', (line) => broadcastLine(win, String(line)));
+    readlineParser.on('data', (line) => {
+      const lineStr = String(line).trim();
+      console.log('[ELECTRON] [RX] Received:', lineStr);
+      broadcastLine(win, lineStr);
+    });
 
     return { success: true };
   } catch (e) {
@@ -293,9 +297,11 @@ ipcMain.handle('serial:writeLine', async (event, { data }) => {
   if (!serialPort) return { success: false, error: 'not connected' };
   try {
     const line = typeof data === 'string' ? data : JSON.stringify(data);
+    console.log('[ELECTRON] [TX] Sending:', line.trim());
     await new Promise((res, rej) => serialPort.write(line.endsWith('\n') ? line : line + '\n', (err) => err ? rej(err) : res(null)));
     return { success: true };
   } catch (e) {
+    console.error('[ELECTRON] [TX] Write error:', e?.message || String(e));
     return { success: false, error: e?.message || String(e) };
   }
 });

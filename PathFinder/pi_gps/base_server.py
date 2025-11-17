@@ -96,6 +96,7 @@ class PiBaseServer:
     # ---------------- Serial I/O ----------------
     def _send(self, obj: Dict[str, Any]) -> None:
         # Enqueue with basic priority; avoid blocking producers.
+        self.log.debug("[TX] Sending message: type=%s, data=%s", obj.get("type"), obj)
         try:
             t = str(obj.get("type"))
             line = json.dumps(obj, separators=(",", ":")) + "\n"
@@ -236,6 +237,7 @@ class PiBaseServer:
     # ---------------- Protocol handling ----------------
     def handle_msg(self, msg: Dict[str, Any]):
         t = msg.get("type")
+        self.log.info("[RX] Received message: type=%s, data=%s", t, msg)
         if t == "hello":
             self._send({
                 "type": "identify",

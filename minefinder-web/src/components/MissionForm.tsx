@@ -155,7 +155,10 @@ export function MissionForm({
           Clear
         </button>
         <button
-          onClick={onCreateMission}
+          onClick={() => {
+            console.log('[MissionForm] Create Mission button clicked!', { canCreate, disabled, startPosition, goalPosition });
+            onCreateMission();
+          }}
           disabled={!canCreate}
           style={{
             flex: 2,

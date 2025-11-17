@@ -172,23 +172,6 @@ export function MissionDashboard({
           </button>
         )}
 
-        {mission.status === 'active' && onComplete && (
-          <button
-            onClick={onComplete}
-            style={{
-              flex: 1,
-              padding: '10px',
-              backgroundColor: '#06a',
-              border: '2px solid #06f',
-              color: '#fff',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-            }}
-          >
-            Complete
-          </button>
-        )}
-
         {mission.status === 'active' && onAbort && (
           <button
             onClick={onAbort}
@@ -203,6 +186,23 @@ export function MissionDashboard({
             }}
           >
             Abort
+          </button>
+        )}
+
+        {mission.status === 'completed' && onComplete && (
+          <button
+            onClick={onComplete}
+            style={{
+              flex: 1,
+              padding: '10px',
+              backgroundColor: '#0a0',
+              border: '2px solid #0f0',
+              color: '#fff',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+            }}
+          >
+            Save Mission
           </button>
         )}
 

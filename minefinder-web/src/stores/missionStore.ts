@@ -100,12 +100,13 @@ export const useMissionStore = create<MissionState>((set, get) => ({
     set((state) => {
       const isCurrentMission = state.activeMission?.mission_id === missionId;
       return {
-        activeMission: isCurrentMission ? null : state.activeMission, // Clear active mission
+        // Keep mission active but change status to 'completed' so user can save it
+        activeMission: isCurrentMission && state.activeMission 
+          ? { ...state.activeMission, status: 'completed' } 
+          : state.activeMission,
         missionHistory: state.missionHistory.map((m) =>
           m.mission_id === missionId ? { ...m, status: 'completed' } : m
         ),
-        draftStart: null, // Clear any draft positions
-        draftGoal: null,
       };
     });
   },
