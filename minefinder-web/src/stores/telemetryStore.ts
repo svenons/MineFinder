@@ -24,13 +24,20 @@ export interface ControllerDescriptor {
   capabilities: string[];
 }
 
+export interface AttachmentDescriptor {
+  id: string;
+  name: string;
+  algorithms: ControllerDescriptor[];
+}
+
 interface TelemetryState {
   connected: boolean;
   port?: string;
   baud?: number;
 
-  controllers: ControllerDescriptor[];
-  selectedControllerId?: string;
+  attachments: AttachmentDescriptor[];
+  selectedAttachmentId?: string;
+  selectedAlgorithmId?: string;
 
   droneGps?: GPSPoint;
   plannedPathGps: GPSPoint[];
@@ -39,8 +46,9 @@ interface TelemetryState {
   lastTs?: number;
 
   setConnected: (connected: boolean, info?: { port?: string; baud?: number }) => void;
-  setControllers: (controllers: ControllerDescriptor[]) => void;
-  selectController: (id: string) => void;
+  addAttachment: (attachment: AttachmentDescriptor) => void;
+  selectAttachment: (id: string) => void;
+  selectAlgorithm: (id: string) => void;
 
   ingestTelemetry: (frame: TelemetryFrame) => void;
   setPathActive: (path: GPSPoint[]) => void;
@@ -52,15 +60,28 @@ const MAX_TRAVELLED_POINTS = 10000; // cap to avoid memory growth
 
 export const useTelemetryStore = create<TelemetryState>((set, get) => ({
   connected: false,
-  controllers: [],
+  attachments: [],
   plannedPathGps: [],
   travelledPathGps: [],
 
   setConnected: (connected, info) => set({ connected, port: info?.port, baud: info?.baud }),
 
-  setControllers: (controllers) => set({ controllers }),
+  addAttachment: (attachment) => set((state) => {
+    // Check if attachment already exists
+    const exists = state.attachments.some(a => a.id === attachment.id);
+    if (exists) {
+      // Update existing attachment
+      return {
+        attachments: state.attachments.map(a => a.id === attachment.id ? attachment : a)
+      };
+    }
+    // Add new attachment
+    return { attachments: [...state.attachments, attachment] };
+  }),
 
-  selectController: (id) => set({ selectedControllerId: id }),
+  selectAttachment: (id) => set({ selectedAttachmentId: id }),
+
+  selectAlgorithm: (id) => set({ selectedAlgorithmId: id }),
 
   ingestTelemetry: (frame) => set((state) => {
     const travelled = frame.path_travelled_gps ?? state.travelledPathGps;

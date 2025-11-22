@@ -46,6 +46,8 @@ class ServerConfig:
     port: str = "/dev/serial0"
     baud: int = 9600
     telemetry_hz: float = 5.0
+    attachment_id: str = "pi_gps_default"
+    attachment_name: str = "Pi GPS Navigator"
 
 
 class PiBaseServer:
@@ -54,7 +56,18 @@ class PiBaseServer:
             raise RuntimeError("pyserial not installed. pip install pyserial")
         self.cfg = cfg
         self.log = logging.getLogger(__name__)
-        self.ser = serial.Serial(self.cfg.port, self.cfg.baud, timeout=0.2, write_timeout=0.5)
+        self.log.info("=== PiBaseServer Starting ===")
+        self.log.info("Config: port=%s, baud=%s, attachment_id=%s, attachment_name=%s", 
+                     cfg.port, cfg.baud, cfg.attachment_id, cfg.attachment_name)
+        self.ser = serial.Serial(
+            self.cfg.port, 
+            self.cfg.baud, 
+            timeout=0.2, 
+            write_timeout=0.5,
+            xonxoff=False,    # Disable software flow control
+            rtscts=False,     # Disable hardware (RTS/CTS) flow control
+            dsrdtr=False      # Disable hardware (DSR/DTR) flow control
+        )
         self.log.info("Opened serial %s@%s", self.cfg.port, self.cfg.baud)
         self.rx_queue: Queue = Queue()
         self.stop_evt = threading.Event()
@@ -85,9 +98,16 @@ class PiBaseServer:
         self.controllers: Dict[str, Any] = {}
         self.selected_id: Optional[str] = None
         self.active: Optional[Any] = None
+        
+        # Mission state
+        self.mission_active: bool = False
+        self.last_heartbeat: float = time.time()
 
-        # For controller callbacks
+        # For controller callbacks - wrap to intercept nav_done
         def emit(obj: Dict[str, Any]):
+            # Clear mission_active when navigation completes
+            if obj.get("type") == "nav_done":
+                self.mission_active = False
             self._send(obj)
         self.emit = emit
 
@@ -96,7 +116,7 @@ class PiBaseServer:
     # ---------------- Serial I/O ----------------
     def _send(self, obj: Dict[str, Any]) -> None:
         # Enqueue with basic priority; avoid blocking producers.
-        self.log.debug("[TX] Sending message: type=%s, data=%s", obj.get("type"), obj)
+        self.log.info("[TX] Sending message: type=%s, data=%s", obj.get("type"), obj)
         try:
             t = str(obj.get("type"))
             line = json.dumps(obj, separators=(",", ":")) + "\n"
@@ -129,22 +149,27 @@ class PiBaseServer:
             print(f"[PiBaseServer] enqueue error: {e}")
 
     def _reader_loop(self):
+        self.log.info("[READER] Starting reader loop")
         while not self.stop_evt.is_set():
             try:
                 chunk = self.ser.readline()
                 if not chunk:
                     continue
                 try:
-                    msg = json.loads(chunk.decode("utf-8", errors="ignore").strip())
+                    raw_line = chunk.decode("utf-8", errors="ignore").strip()
+                    self.log.info("[RX] Raw line received: %s", raw_line)
+                    msg = json.loads(raw_line)
                     if isinstance(msg, dict):
                         try:
-                            self.log.debug("RX %s", msg.get("type"))
+                            self.log.info("[RX] Parsed message type: %s", msg.get("type"))
                         except Exception:
                             pass
                         self.rx_queue.put(msg)
-                except Exception:
+                except Exception as e:
+                    self.log.error("[RX] Parse error: %s", e)
                     continue
-            except Exception:
+            except Exception as e:
+                self.log.error("[READER] Error in reader loop: %s", e)
                 time.sleep(0.05)
 
     # ---------------- TX loop with pacing ----------------
@@ -202,6 +227,8 @@ class PiBaseServer:
                         time.sleep(0.005)
                         continue
                     try:
+                        if sent == 0:  # Log only once per message
+                            self.log.info("[TX] Writing to serial: %s", data.decode("utf-8", errors="ignore").strip())
                         n = self.ser.write(data[sent:sent+chunk])
                         if not n:
                             # Treat as transient; small sleep
@@ -243,11 +270,15 @@ class PiBaseServer:
                 "type": "identify",
                 "version": 1,
                 "server": "PiGPS",
+                "attachment_id": self.cfg.attachment_id,
+                "attachment_name": self.cfg.attachment_name,
                 "controllers": [
                     {"id": cid, "name": cid, "capabilities": getattr(self.controllers.get(cid), "CAPS", ["gps_astar","telemetry"]) if hasattr(self.controllers.get(cid), "CAPS") else ["gps_astar","telemetry"]}
                     for cid in self.controllers.keys()
                 ],
                 "selected_controller": self.selected_id,
+                "mission_active": self.mission_active,
+                "configured": self.origin_gps is not None,
             })
         elif t == "select_controller":
             cid = str(msg.get("id", ""))
@@ -255,8 +286,15 @@ class PiBaseServer:
             if ctl is None:
                 self._send({"type": "error", "message": f"unknown controller {cid}"})
                 return
+            # Stop previous controller if any
+            if self.active and hasattr(self.active, "stop_mission"):
+                try:
+                    self.active.stop_mission()
+                except Exception:
+                    pass
             self.selected_id = cid
             self.active = ctl
+            self.mission_active = False
             self._send({"type": "controller_selected", "id": cid})
         elif t == "configure":
             self.origin_gps = msg.get("origin_gps") or self.origin_gps
@@ -286,22 +324,44 @@ class PiBaseServer:
                 self._send({"type":"error","message":"no controller selected"})
                 return
             try:
+                self.mission_active = True
                 self.active.start_mission(msg.get("start_gps"), msg.get("goal_gps"))
             except Exception as e:
+                self.mission_active = False
                 self._send({"type":"error","message":f"mission_start failed: {e}"})
         elif t == "mission_stop":
+            self.mission_active = False
             if self.active and hasattr(self.active, "stop_mission"):
                 try:
                     self.active.stop_mission()
                 except Exception:
                     pass
             self._send({"type":"status","message":"mission stopped"})
+        elif t == "query_state":
+            # Allow client to request current state for resync
+            self._send({
+                "type": "state_response",
+                "attachment_id": self.cfg.attachment_id,
+                "attachment_name": self.cfg.attachment_name,
+                "selected_controller": self.selected_id,
+                "mission_active": self.mission_active,
+                "configured": self.origin_gps is not None,
+                "origin_gps": self.origin_gps,
+                "metres_per_cm": self.metres_per_cm,
+                "simulate": self.simulate,
+            })
         elif t == "mine_detected":
             if self.active and hasattr(self.active, "ingest_event"):
                 try:
                     self.active.ingest_event(msg)
                 except Exception:
                     pass
+        elif t == "status":
+            # Silently ignore status messages to prevent infinite loops
+            pass
+        elif t == "heartbeat":
+            # Silently ignore heartbeat messages from client
+            pass
         else:
             self._send({"type":"status","message":f"unknown type: {t}"})
 
@@ -313,7 +373,9 @@ class PiBaseServer:
                 self._send({"type":"error","message":f"tick error: {e}"})
 
     def serve_forever(self):
+        self.log.info("=== Starting serve_forever loop ===")
         self._send({"type":"status","message":f"PiGPS ready on {self.cfg.port}@{self.cfg.baud}"})
+        self.log.info("=== Waiting for messages ===")
         while not self.stop_evt.is_set():
             # Drain input quickly
             try:
@@ -329,6 +391,15 @@ class PiBaseServer:
                 dt = now - self._last_tick
                 self._last_tick = now
                 self._tick(dt)
+            # Send periodic heartbeat every 10 seconds when no mission active
+            if not self.mission_active and (now - self.last_heartbeat) >= 10.0:
+                self.last_heartbeat = now
+                self._send({
+                    "type": "heartbeat",
+                    "attachment_id": self.cfg.attachment_id,
+                    "selected_controller": self.selected_id,
+                    "mission_active": self.mission_active,
+                })
 
     def close(self):
         try:

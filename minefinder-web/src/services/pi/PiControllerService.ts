@@ -21,9 +21,12 @@ export class PiControllerService {
   private readonly METERS_PER_DEGREE_LAT = 111320;  // Earth radius approximation
 
   async connect(port: string, baud: number = 9600) {
+    console.log('[PiControllerService] Connecting to', port, 'at', baud, 'baud');
+    
     // Subscribe to status & lines first
     this.statusUnsub?.();
     this.statusUnsub = piSerialBridge.onStatus((st) => {
+      console.log('[PiControllerService] Status update:', st);
       useTelemetryStore.getState().setConnected(!!st.connected, { port: st.port, baud: st.baud });
       this.connected = !!st.connected;
     });
@@ -31,8 +34,23 @@ export class PiControllerService {
     this.lineUnsub = piSerialBridge.onLine((line) => this.handleLine(line));
 
     const res = await piSerialBridge.open(port, baud);
+    console.log('[PiControllerService] Serial open result:', res);
     if (!res.success) throw new Error(res.error || 'failed to open serial');
+    
+    // Wait for serial port to stabilize
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    console.log('[PiControllerService] Sending hello message');
     await this.send({ type: 'hello', role: 'client', app: 'MineFinder', version: 1 });
+    console.log('[PiControllerService] Hello sent');
+    
+    // Request current state in case Pi was already running
+    setTimeout(() => {
+      console.log('[PiControllerService] Sending query_state');
+      this.send({ type: 'query_state' }).catch((err) => {
+        console.error('[PiControllerService] query_state failed:', err);
+      });
+    }, 1000);  // Increased delay to 1 second
   }
 
   async disconnect() {
@@ -46,12 +64,17 @@ export class PiControllerService {
   }
 
   async send(msg: OutboundMsg) {
-    return piSerialBridge.writeLine({ ...msg });
+    console.log('[PiControllerService] [TX] Sending message:', msg);
+    const result = await piSerialBridge.writeLine({ ...msg });
+    if (!result.success) {
+      console.error('[PiControllerService] [TX] Send failed:', result.error);
+    }
+    return result;
   }
 
-  async selectController(id: string) {
+  async selectAlgorithm(id: string) {
     await this.send({ type: 'select_controller', id });
-    useTelemetryStore.getState().selectController(id);
+    useTelemetryStore.getState().selectAlgorithm(id);
   }
 
   async configure(origin: { lat: number; lon: number; alt?: number }, metres_per_cm: number, options?: {
@@ -87,9 +110,9 @@ export class PiControllerService {
     console.log('[PiControllerService] startMission called with start:', start, 'goal:', goal);
     
     // Always sync simulation mines before starting mission (in case user added/removed mines)
-    const selectedId = useTelemetryStore.getState().selectedControllerId;
+    const selectedAlgorithmId = useTelemetryStore.getState().selectedAlgorithmId;
     const simulate = useSimulationStore.getState().enabled;
-    if (selectedId && simulate) {
+    if (selectedAlgorithmId && simulate) {
       const mines = useSimulationStore.getState().mines;
       const mines_gps = mines.map(m => ({ lat: m.gps.latitude, lon: m.gps.longitude, radius_m: m.radius_m }));
       console.log('[PiControllerService] Sending sim_mines with', mines_gps.length, 'mines');
@@ -107,30 +130,94 @@ export class PiControllerService {
   }
 
   private handleLine(line: string) {
+    console.log('[PiControllerService] [RX] Received line:', line);
     let msg: InboundMsg | null = null;
     try {
       msg = JSON.parse(line);
-    } catch {
+      console.log('[PiControllerService] [RX] Parsed message:', msg);
+    } catch (e) {
+      console.error('[PiControllerService] [RX] JSON parse error:', e);
       return;
     }
-    if (!msg || typeof (msg as any).type !== 'string') return;
+    if (!msg || typeof (msg as any).type !== 'string') {
+      console.warn('[PiControllerService] [RX] Invalid message structure:', msg);
+      return;
+    }
 
+    console.log('[PiControllerService] [RX] Handling message type:', (msg as any).type);
     switch ((msg as any).type) {
       case 'identify': {
         const m = msg as any;
-        const controllers = (m.controllers || []).map((c: any) => ({ id: String(c.id), name: String(c.name), capabilities: Array.isArray(c.capabilities) ? c.capabilities : [] }));
-        useTelemetryStore.getState().setControllers(controllers);
+        const algorithms = (m.controllers || []).map((c: any) => ({ id: String(c.id), name: String(c.name), capabilities: Array.isArray(c.capabilities) ? c.capabilities : [] }));
+        const attachment = {
+          id: String(m.attachment_id || 'unknown'),
+          name: String(m.attachment_name || m.attachment_id || 'Unknown Attachment'),
+          algorithms,
+        };
+        useTelemetryStore.getState().addAttachment(attachment);
+        
+        // Auto-select attachment if it's the only one
+        const state = useTelemetryStore.getState();
+        if (state.attachments.length === 1 && !state.selectedAttachmentId) {
+          useTelemetryStore.getState().selectAttachment(attachment.id);
+        }
+        
+        // Restore selected algorithm if Pi was already running
+        if (m.selected_controller && typeof m.selected_controller === 'string') {
+          useTelemetryStore.getState().selectAlgorithm(String(m.selected_controller));
+        }
+        
+        // TODO: Handle mission_active state if needed
+        if (m.mission_active) {
+          console.log('[PiControllerService] Pi reports mission is active');
+        }
+        break;
+      }
+      case 'heartbeat': {
+        const m = msg as any;
+        // Heartbeat keeps connection alive and can resync state
+        if (m.selected_controller && typeof m.selected_controller === 'string') {
+          const currentAlgo = useTelemetryStore.getState().selectedAlgorithmId;
+          if (currentAlgo !== m.selected_controller) {
+            console.log('[PiControllerService] Resyncing algorithm from heartbeat:', m.selected_controller);
+            useTelemetryStore.getState().selectAlgorithm(String(m.selected_controller));
+          }
+        }
+        break;
+      }
+      case 'state_response': {
+        const m = msg as any;
+        // Full state sync response
+        console.log('[PiControllerService] Received state response:', m);
+        
+        // Restore algorithm selection
+        if (m.selected_controller && typeof m.selected_controller === 'string') {
+          useTelemetryStore.getState().selectAlgorithm(String(m.selected_controller));
+        }
+        
+        // Restore origin for coordinate conversion if configured
+        if (m.configured && m.origin_gps) {
+          this.origin = { lat: Number(m.origin_gps.lat), lon: Number(m.origin_gps.lon) };
+          this.metresPerCm = Number(m.metres_per_cm || 0.01);
+        }
         break;
       }
       case 'controller_list': {
         const m = msg as any;
-        const controllers = (m.controllers || []).map((c: any) => ({ id: String(c.id), name: String(c.name), capabilities: Array.isArray(c.capabilities) ? c.capabilities : [] }));
-        useTelemetryStore.getState().setControllers(controllers);
+        const algorithms = (m.controllers || []).map((c: any) => ({ id: String(c.id), name: String(c.name), capabilities: Array.isArray(c.capabilities) ? c.capabilities : [] }));
+        // Update the current attachment's algorithms if available
+        const state = useTelemetryStore.getState();
+        if (state.selectedAttachmentId) {
+          const attachment = state.attachments.find(a => a.id === state.selectedAttachmentId);
+          if (attachment) {
+            useTelemetryStore.getState().addAttachment({ ...attachment, algorithms });
+          }
+        }
         break;
       }
       case 'controller_selected': {
         const m = msg as any;
-        if (m.id) useTelemetryStore.getState().selectController(String(m.id));
+        if (m.id) useTelemetryStore.getState().selectAlgorithm(String(m.id));
         break;
       }
       case 'path_update': {

@@ -23,6 +23,8 @@ def parse_args(argv=None):
     p.add_argument("--port", default="/dev/serial0", help="Serial port device path")
     p.add_argument("--baud", type=int, default=9600, help="Serial baud rate")
     p.add_argument("--telemetry-hz", type=float, default=5.0, help="Telemetry rate (Hz)")
+    p.add_argument("--attachment-id", default="pi_gps_default", help="Unique attachment identifier")
+    p.add_argument("--attachment-name", default="Pi GPS Navigator", help="Human-readable attachment name")
     p.add_argument("--log-level", default="INFO", choices=["DEBUG","INFO","WARNING","ERROR","CRITICAL"], help="Logging level (default: INFO)")
     p.add_argument("--verbose", action="store_true", help="Enable very verbose (DEBUG) logging")
     return p.parse_args(argv)
@@ -35,9 +37,13 @@ def main(argv=None):
     level = logging.DEBUG if args.verbose else getattr(logging, str(args.log_level).upper(), logging.INFO)
     logging.basicConfig(level=level, stream=sys.stderr, format='[%(asctime)s] %(levelname)s %(name)s: %(message)s')
     log = logging.getLogger(__name__)
+    log.info("="*60)
     log.info("Starting Pi GPS server")
+    log.info("Port: %s, Baud: %s, Attachment: %s (%s)", args.port, args.baud, args.attachment_id, args.attachment_name)
+    log.info("Log level: %s", logging.getLevelName(level))
+    log.info("="*60)
 
-    cfg = ServerConfig(port=args.port, baud=args.baud, telemetry_hz=args.telemetry_hz)
+    cfg = ServerConfig(port=args.port, baud=args.baud, telemetry_hz=args.telemetry_hz, attachment_id=args.attachment_id, attachment_name=args.attachment_name)
     try:
         server = PiBaseServer(cfg)
     except Exception as e:

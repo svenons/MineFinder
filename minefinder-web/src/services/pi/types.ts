@@ -5,8 +5,12 @@ export interface IdentifyMsg {
   type: 'identify';
   version: number;
   server: string;
+  attachment_id: string;
+  attachment_name: string;
   controllers: { id: string; name: string; capabilities: string[] }[];
   selected_controller?: string;
+  mission_active?: boolean;
+  configured?: boolean;
 }
 
 export interface ControllerListMsg {
@@ -36,6 +40,25 @@ export interface TelemetryMsg {
 
 export interface NavDoneMsg { type: 'nav_done' }
 
+export interface HeartbeatMsg {
+  type: 'heartbeat';
+  attachment_id: string;
+  selected_controller?: string;
+  mission_active: boolean;
+}
+
+export interface StateResponseMsg {
+  type: 'state_response';
+  attachment_id: string;
+  attachment_name: string;
+  selected_controller?: string;
+  mission_active: boolean;
+  configured: boolean;
+  origin_gps?: { lat: number; lon: number; alt?: number };
+  metres_per_cm?: number;
+  simulate?: boolean;
+}
+
 export type InboundMsg =
   | IdentifyMsg
   | ControllerListMsg
@@ -45,7 +68,9 @@ export type InboundMsg =
   | ErrorMsg
   | PathUpdateMsg
   | TelemetryMsg
-  | NavDoneMsg;
+  | NavDoneMsg
+  | HeartbeatMsg
+  | StateResponseMsg;
 
 export type OutboundMsg =
   | { type: 'hello'; role: 'client'; app: string; version: number }
@@ -53,4 +78,5 @@ export type OutboundMsg =
   | { type: 'configure'; origin_gps: { lat: number; lon: number; alt?: number }; metres_per_cm: number; simulate: boolean; simulated_speed_ms?: number; mine_buffer_m?: number; telemetry_hz?: number }
   | { type: 'sim_mines'; mines_gps: { lat: number; lon: number; radius_m?: number }[] }
   | { type: 'mission_start'; start_gps: GPSPoint; goal_gps: GPSPoint }
-  | { type: 'mission_stop' };
+  | { type: 'mission_stop' }
+  | { type: 'query_state' };
