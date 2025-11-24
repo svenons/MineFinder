@@ -8,15 +8,24 @@
 
 import { piControllerService } from '../services/pi/PiControllerService';
 import { useTelemetryStore } from '../stores/telemetryStore';
+import { useSimulationStore } from '../stores/simulationStore';
 
 export function AlgorithmSelector() {
   const tel = useTelemetryStore();
+  const sim = useSimulationStore();
 
   // Get available algorithms from the selected attachment
   const selectedAttachment = tel.attachments.find(a => a.id === tel.selectedAttachmentId);
   const algorithms = selectedAttachment?.algorithms || [];
 
   const handleSelectAlgorithm = async (id: string) => {
+    // For simulation attachment, just update the store directly
+    if (selectedAttachment?.id === 'simulation') {
+      tel.selectAlgorithm(id);
+      return;
+    }
+
+    // For USB attachments, communicate with the Pi
     try {
       await piControllerService.selectAlgorithm(id);
     } catch (e) {
@@ -24,26 +33,27 @@ export function AlgorithmSelector() {
     }
   };
 
-  // Show disabled state if not connected or no attachment selected
-  const isDisabled = !tel.connected || !tel.selectedAttachmentId;
+  // Show disabled state if not connected/simulation enabled or no attachment selected
+  const hasConnection = tel.connected || sim.enabled;
+  const isDisabled = !hasConnection || !tel.selectedAttachmentId;
 
   return (
     <div style={{ padding: '16px' }}>
       <h3 style={{ marginTop: 0 }}>Algorithm Selection</h3>
 
-      {!tel.connected && (
+      {!hasConnection && (
         <div style={{ color: 'var(--color-text-disabled)', fontStyle: 'italic', fontSize: '14px' }}>
-          Connect to attachment first
+          Connect to attachment or enable simulation mode
         </div>
       )}
 
-      {tel.connected && !tel.selectedAttachmentId && (
+      {hasConnection && !tel.selectedAttachmentId && (
         <div style={{ color: 'var(--color-text-disabled)', fontStyle: 'italic', fontSize: '14px' }}>
           Select an attachment first
         </div>
       )}
 
-      {tel.connected && tel.selectedAttachmentId && (
+      {hasConnection && tel.selectedAttachmentId && (
         <>
           <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--color-text-muted)' }}>
             Choose navigation algorithm

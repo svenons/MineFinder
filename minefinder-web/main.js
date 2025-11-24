@@ -117,10 +117,10 @@ ipcMain.handle('pathfinder:run', async (event, { worldExport, pythonPath = 'pyth
   try {
     // PathFinder directory (relative to project root)
     const pathFinderDir = path.join(__dirname, '..', 'PathFinder');
-    const mainPy = path.join(pathFinderDir, 'main.py');
+    const headlessPy = path.join(pathFinderDir, 'headless.py');
 
-    // Spawn Python process
-    const pythonProcess = spawn(pythonPath, [mainPy], {
+    // Spawn Python process with headless version (no GUI, no pygame)
+    const pythonProcess = spawn(pythonPath, [headlessPy], {
       cwd: pathFinderDir,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -144,7 +144,9 @@ ipcMain.handle('pathfinder:run', async (event, { worldExport, pythonPath = 'pyth
 
     // Collect stderr
     pythonProcess.stderr.on('data', (data) => {
-      stderrData += data.toString();
+      const msg = data.toString();
+      console.error('[PathFinder stderr]', msg);
+      stderrData += msg;
     });
 
     // Wait for process to complete
@@ -157,22 +159,29 @@ ipcMain.handle('pathfinder:run', async (event, { worldExport, pythonPath = 'pyth
       });
 
       // Send world export via stdin
-      pythonProcess.stdin.write(JSON.stringify(worldExport) + '\n');
+      const jsonInput = JSON.stringify(worldExport);
+      console.log('[PathFinder] Sending input:', jsonInput);
+      pythonProcess.stdin.write(jsonInput + '\n');
       pythonProcess.stdin.end();
 
-      // Timeout after 30 seconds
+      // Timeout after 60 seconds
       setTimeout(() => {
         pythonProcess.kill();
         reject(new Error('PathFinder process timed out'));
-      }, 30000);
+      }, 60000);
     });
 
+    console.log('[PathFinder] Process exited with code', exitCode);
+    console.log('[PathFinder] Events:', events);
+    console.log('[PathFinder] Stderr:', stderrData);
+    
     return {
       success: exitCode === 0,
       events,
       stdout: stdoutData,
       stderr: stderrData,
       exitCode,
+      error: exitCode !== 0 ? (stderrData || 'PathFinder process failed') : undefined,
     };
   } catch (error) {
     return {

@@ -16,7 +16,7 @@
  * Hardware (Pi) → Serial JSONL → PiControllerService → Store → UI
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
 
 // Components
@@ -25,25 +25,31 @@ import { MissionForm } from './components/MissionForm';
 import { AttachmentSelector } from './components/AttachmentSelector';
 import { AlgorithmSelector } from './components/AlgorithmSelector';
 import { MissionDashboard } from './components/MissionDashboard';
-import { OptionsPanel } from './components/OptionsPanel';
 import { SimulationPanel } from './components/SimulationPanel';
 import { ThemeToggle } from './components/ThemeToggle';
+import { SettingsModal } from './components/SettingsModal';
+import { MissionHistory } from './components/MissionHistory';
 
 // Stores (Zustand state management)
 import { useMissionStore } from './stores/missionStore';
+import type { Mission } from './types/mission.types';
 import { useDetectionStore } from './stores/detectionStore';
 import { useThemeStore } from './stores/themeStore';
 
 // Services
 import { PathFinderService } from './services/PathFinderService';
+import { DetectionAggregator } from './services/DetectionAggregator';
 import { piControllerService } from './services/pi/PiControllerService';
 import { useTelemetryStore } from './stores/telemetryStore';
 import { useSimulationStore } from './stores/simulationStore';
+import { CoordinateService } from './services/CoordinateService';
 
 function App() {
   const tel = useTelemetryStore();
   const sim = useSimulationStore();
   const { theme } = useThemeStore();
+  const animationIntervalRef = useRef<number | null>(null);
+  
   // Mission state management via Zustand stores
   const {
     activeMission,      // Currently executing mission or null
@@ -59,10 +65,12 @@ function App() {
   } = useMissionStore();
 
   // Detection aggregation and deduplication
-  const { detections, processDetection, clearDetections } = useDetectionStore();
+  const { detections, clearDetections } = useDetectionStore();
 
   // Local UI state
   const [clickMode, setClickMode] = useState<'start' | 'goal'>('start');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Grid configuration defines mission area dimensions
   const gridConfig = {
@@ -109,12 +117,15 @@ function App() {
     // If Pi serial is connected and a controller is selected, send configure and start to Pi
     const startGps = draftStart.gps;
     const goalGps = draftGoal.gps;
+    const isSimulation = sim.enabled && tel.selectedAttachmentId === 'simulation';
     
     console.log('[App] handleCreateMission - checking conditions:', {
       connected: useTelemetryStore.getState().connected,
       selectedAlgorithmId: useTelemetryStore.getState().selectedAlgorithmId,
+      selectedAttachmentId: tel.selectedAttachmentId,
       hasStartGps: !!startGps,
       hasGoalGps: !!goalGps,
+      isSimulation,
     });
     
     if (useTelemetryStore.getState().connected && useTelemetryStore.getState().selectedAlgorithmId && startGps && goalGps) {
@@ -131,6 +142,15 @@ function App() {
       } catch (e) {
         console.warn('Pi mission start failed:', e);
       }
+    } else if (isSimulation && tel.selectedAlgorithmId) {
+      // Run local simulation if simulation attachment is selected
+      console.log('[App] Running local simulation with algorithm:', tel.selectedAlgorithmId);
+      try {
+        await runLocalSimulation(mission);
+      } catch (e) {
+        console.error('Local simulation failed:', e);
+        alert(`Simulation failed: ${e}`);
+      }
     }
 
     // Transition mission to active state
@@ -138,6 +158,145 @@ function App() {
 
     // Reset UI to start mode for next mission planning
     setClickMode('start');
+  };
+
+  // Run local simulation (for simulation attachment)
+  const runLocalSimulation = async (mission: Mission) => {
+    console.log('[App] Starting local simulation...');
+    
+    // Create detection aggregator and add simulated mines
+    const aggregator = new DetectionAggregator();
+    const startGps = mission.start.gps;
+    const goalGps = mission.goal.gps;
+    
+    if (!startGps || !goalGps) {
+      throw new Error('Missing GPS coordinates');
+    }
+
+    // Add simulated mines using their stored grid coordinates
+    sim.mines.forEach(mine => {
+      if (mine.gps && mine.x_cm !== undefined && mine.y_cm !== undefined) {
+        aggregator.processDetection({
+          position: {
+            x_cm: mine.x_cm,
+            y_cm: mine.y_cm,
+            x_m: mine.x_cm * gridConfig.metres_per_cm,
+            y_m: mine.y_cm * gridConfig.metres_per_cm,
+            gps: mine.gps,
+          },
+          confidence: 0.95,
+          timestamp: Date.now(),
+          sensor_id: 'simulated',
+        });
+      }
+    });
+    
+    console.log('[App] Added', sim.mines.length, 'mines to PathFinder');
+    
+    // Run PathFinder to compute safe path
+    try {
+      const result = await PathFinderService.runSimulation(mission, aggregator, 0.5);
+      
+      console.log('[App] PathFinder result:', result);
+      
+      if (!result.success) {
+        console.error('[App] PathFinder failed:', result.error || result.stderr);
+        throw new Error(result.error || result.stderr || 'PathFinder failed to compute path');
+      }
+      
+      if (!result.events || result.events.length === 0) {
+        throw new Error('PathFinder returned no events');
+      }
+
+      // Extract drone position events (the actual flight path with detections)
+      const droneEvents = result.events.filter((e: any) => e.type === 'drone_position');
+      const mineEvents = result.events.filter((e: any) => e.type === 'mine_detected');
+      
+      console.log('[App] Received', droneEvents.length, 'position events and', mineEvents.length, 'mine detections');
+      
+      if (droneEvents.length === 0) {
+        throw new Error('No drone positions in simulation');
+      }
+
+      // Convert drone positions to GPS path
+      const coordService = new CoordinateService(startGps, gridConfig.metres_per_cm);
+      const flightPath = droneEvents.map((e: any) => 
+        coordService.gridToGPS(e.data.x_cm, e.data.y_cm)
+      );
+
+      // Don't set path_active yet - we'll build it as we animate
+      // tel.setPathActive(flightPath);
+      
+      // Process detected mines and add them progressively during animation
+      const detectedMinesGps = mineEvents.map((e: any) => ({
+        ...coordService.gridToGPS(e.data.x_cm, e.data.y_cm),
+        ts: e.ts
+      }));
+
+      // Start animating drone along the flight path (this will show the exploration)
+      animateDroneAlongPath(flightPath, detectedMinesGps);
+    } catch (error: any) {
+      console.error('[App] PathFinder execution failed:', error);
+      throw new Error(error.message || 'PathFinder execution failed');
+    }
+  };
+
+  // Animate drone movement along path
+  const animateDroneAlongPath = (
+    pathGps: Array<{latitude: number, longitude: number}>,
+    detectedMinesWithTs: Array<{latitude: number, longitude: number, ts: number}>
+  ) => {
+    if (pathGps.length === 0) return;
+
+    // Clear any existing animation
+    if (animationIntervalRef.current) {
+      clearInterval(animationIntervalRef.current);
+      animationIntervalRef.current = null;
+    }
+
+    let currentIndex = 0;
+    const hz = sim.telemetry_hz || 10; // Default 10Hz if not set
+    const intervalMs = 1000 / hz;
+
+    const stepAnimation = () => {
+      if (currentIndex >= pathGps.length) {
+        if (animationIntervalRef.current) {
+          clearInterval(animationIntervalRef.current);
+          animationIntervalRef.current = null;
+        }
+        console.log('[App] Simulation complete - reached goal');
+        return;
+      }
+
+      // Update drone position
+      const pos = pathGps[currentIndex];
+      
+      // Build path progressively (showing exploration as it happens)
+      const currentPath = pathGps.slice(0, currentIndex + 1);
+      
+      tel.ingestTelemetry({
+        pos_gps: pos,
+        path_active_gps: currentPath, // Only show path up to current position
+        speed_ms: sim.simulated_speed_ms,
+        ts: Date.now(),
+      });
+
+      // Append to travelled path
+      tel.appendTravelled([pos]);
+
+      // Show detected mines when we reach their timestamp
+      detectedMinesWithTs.forEach(mine => {
+        if (mine.ts === currentIndex) {
+          console.log('[Animation] Mine detected at step', currentIndex, mine);
+          // Mark corresponding simulated mine as detected
+          sim.markMineDetected(mine);
+        }
+      });
+
+      currentIndex++;
+    };
+
+    animationIntervalRef.current = setInterval(stepAnimation, intervalMs) as any;
   };
 
   // Handle mission start
@@ -173,6 +332,14 @@ function App() {
   // Handle mission abort
   const handleAbortMission = () => {
     if (!activeMission) return;
+    
+    // Stop any running animation
+    if (animationIntervalRef.current) {
+      clearInterval(animationIntervalRef.current);
+      animationIntervalRef.current = null;
+      console.log('[App] Animation stopped due to abort');
+    }
+    
     // Notify Pi server if connected
     if (useTelemetryStore.getState().connected) {
       try { piControllerService.stopMission(); } catch {}
@@ -209,6 +376,28 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // Initialize simulation attachment if simulation mode is enabled
+  useEffect(() => {
+    if (sim.enabled) {
+      tel.addAttachment({
+        id: 'simulation',
+        name: 'Simulation',
+        algorithms: [
+          {
+            id: 'astar-backtrack',
+            name: 'A* with Backtracking',
+            capabilities: ['pathfinding', 'obstacle_avoidance'],
+          },
+          {
+            id: 'scan-entire-field',
+            name: 'Scan Entire Field',
+            capabilities: ['coverage', 'systematic_scan'],
+          },
+        ],
+      });
+    }
+  }, [sim.enabled]);
+
   return (
     <div className="app-container" style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: 'var(--color-background)', color: 'var(--color-text)' }}>
       {/* Left Sidebar */}
@@ -225,19 +414,63 @@ function App() {
         }}
       >
         <div style={{ padding: '16px', borderBottom: '1px solid var(--color-border-subtle)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
               <h1 style={{ margin: 0, fontSize: '24px' }}>MineFinder</h1>
               <div style={{ fontSize: '12px', color: 'var(--color-text-disabled)', marginTop: '4px' }}>
                 Mission Controller
               </div>
             </div>
-            <ThemeToggle />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => setHistoryOpen(true)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flex: 1,
+                    justifyContent: 'center',
+                    minWidth: 0,
+                  }}
+                  title="Mission History"
+                >
+                  <span style={{ fontSize: '16px' }}>📋</span>
+                  <span>History</span>
+                </button>
+                <button
+                  onClick={() => setSettingsOpen(true)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    flex: 1,
+                    justifyContent: 'center',
+                    minWidth: 0,
+                  }}
+                  title="Settings"
+                >
+                  <span style={{ fontSize: '16px' }}>⚙️</span>
+                  <span>Settings</span>
+                </button>
+              </div>
+              <ThemeToggle />
+            </div>
           </div>
-        </div>
-
-        <div style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
-          <OptionsPanel />
         </div>
 
         <div style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
@@ -262,12 +495,16 @@ function App() {
             }}
             onCreateMission={handleCreateMission}
             disabled={!!activeMission}
+            simulationEnabled={sim.enabled}
+            mineCount={sim.mines.length}
           />
         </div>
 
-        <div style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
-          <SimulationPanel />
-        </div>
+        {sim.enabled && (
+          <div style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+            <SimulationPanel />
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
@@ -359,6 +596,69 @@ function App() {
           )}
         </div>
       </div>
+
+      {/* Settings Modal */}
+      <SettingsModal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* Mission History Modal */}
+      {historyOpen && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setHistoryOpen(false)}
+        >
+          <div 
+            style={{
+              backgroundColor: 'var(--color-background)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '600px',
+              width: '90%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '20px' }}>Mission History</h2>
+              <button 
+                onClick={() => setHistoryOpen(false)}
+                style={{ 
+                  background: 'transparent', 
+                  border: 'none', 
+                  fontSize: '24px', 
+                  cursor: 'pointer',
+                  padding: '0 8px',
+                  color: 'var(--color-text)',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginTop: '-8px' }}>
+              <MissionHistory 
+                onSelectMission={(mission) => {
+                  console.log('Selected mission:', mission);
+                  // Could add functionality to view details or replay
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -59,13 +59,15 @@ except Exception:  # pragma: no cover
 # ----------------- Data structures -----------------
 @dataclass
 class Board:
-    width: int
-    height: int
+    min_x: int
+    max_x: int
+    min_y: int
+    max_y: int
     metres_per_cm: float = 1.0
     mines: Set[Tuple[int, int]] = field(default_factory=set)
 
     def in_bounds(self, x: int, y: int) -> bool:
-        return 0 <= x < self.width and 0 <= y < self.height
+        return self.min_x <= x <= self.max_x and self.min_y <= y <= self.max_y
 
 
 # ----------------- Server -----------------
@@ -284,8 +286,6 @@ class SerialNavServer:
                 self.pending_nav_stop = False
                 self.known_mines = set()  # Start with zero known mines (do not seed)
                 board_obj = msg.get("board") or {}
-                width = int(board_obj.get("width", 0))
-                height = int(board_obj.get("height", 0))
                 mpc = float(board_obj.get("metres_per_cm", 1.0))
                 mines: Set[Tuple[int, int]] = set()
                 for m in board_obj.get("mines", []) or []:
@@ -294,17 +294,34 @@ class SerialNavServer:
                             mines.add((int(m[0]), int(m[1])))
                     except Exception:
                         pass
-                # Store any provided mines as hidden ground-truth (simulation aid), but DO NOT seed planning
-                self.hidden_mines = set(mines)
-                self.board = Board(width=width, height=height, metres_per_cm=mpc, mines=mines)
+                
                 start = msg.get("start") or [0, 0]
                 goal = msg.get("goal") or [0, 0]
+                
                 try:
                     start_t = (int(start[0]), int(start[1]))
                     goal_t = (int(goal[0]), int(goal[1]))
                 except Exception:
                     self._send({"type": "toast", "message": "Invalid start/goal", "duration": 1.8})
                     continue
+
+                # Calculate dynamic bounds
+                all_x = [start_t[0], goal_t[0]]
+                all_y = [start_t[1], goal_t[1]]
+                for mx, my in mines:
+                    all_x.append(mx)
+                    all_y.append(my)
+                
+                padding = 200  # 2 meters padding
+                min_x = min(all_x) - padding
+                max_x = max(all_x) + padding
+                min_y = min(all_y) - padding
+                max_y = max(all_y) + padding
+
+                # Store any provided mines as hidden ground-truth (simulation aid), but DO NOT seed planning
+                self.hidden_mines = set(mines)
+                self.board = Board(min_x=min_x, max_x=max_x, min_y=min_y, max_y=max_y, metres_per_cm=mpc, mines=mines)
+                
                 if self.board is None or not self.board.in_bounds(*start_t) or not self.board.in_bounds(*goal_t):
                     self._send({"type": "toast", "message": "Start/goal out of bounds", "duration": 2.0})
                     continue

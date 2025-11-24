@@ -12,6 +12,9 @@ export interface GPSPoint {
 export interface SimulatedMine {
   id: string;
   gps: GPSPoint;
+  /** Grid coordinates (cm) - set when mine is placed */
+  x_cm?: number;
+  y_cm?: number;
   /** Radius in meters for avoidance buffer (default 10m) */
   radius_m: number;
   detected?: boolean;  // True if drone has detected this mine

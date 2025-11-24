@@ -46,18 +46,6 @@ export function SimulationPanel() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <label style={{ gridColumn: '1 / span 2', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input 
-            type="checkbox" 
-            checked={sim.enabled} 
-            onChange={(e) => {
-              sim.setEnabled(e.target.checked);
-              handleSave();
-            }} 
-          />
-          <span>Enable Simulation Mode</span>
-        </label>
-
         <div>
           <label style={{ fontSize: 12, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>
             Speed (m/s)

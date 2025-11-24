@@ -83,15 +83,39 @@ export class MissionProtocolService {
   ): PathFinderWorldExport {
     const mines = aggregator.exportForPathFinder(confidenceThreshold);
 
+    // Normalize coordinates: make start (0,0) and convert everything relative to start
+    const startX = mission.start.x_cm;
+    const startY = mission.start.y_cm;
+
+    const normalizedMines = mines.map(mine => ({
+      x_cm: mine.x_cm - startX,
+      y_cm: mine.y_cm - startY,
+      x_m: mine.x_m - mission.start.x_m,
+      y_m: mine.y_m - mission.start.y_m,
+      gps: mine.gps,
+    }));
+
     return {
       config: {
         width_cm: mission.corridor?.width_cm || 50,
         height_cm: mission.corridor?.height_cm || 30,
         metres_per_cm: mission.metres_per_cm,
       },
-      mines,
-      start: mission.start,
-      goal: mission.goal,
+      mines: normalizedMines,
+      start: {
+        x_cm: 0,
+        y_cm: 0,
+        x_m: 0,
+        y_m: 0,
+        gps: mission.start.gps,
+      },
+      goal: {
+        x_cm: mission.goal.x_cm - startX,
+        y_cm: mission.goal.y_cm - startY,
+        x_m: mission.goal.x_m - mission.start.x_m,
+        y_m: mission.goal.y_m - mission.start.y_m,
+        gps: mission.goal.gps,
+      },
       metadata: {
         mission_id: mission.mission_id,
         created_at: mission.created_at,

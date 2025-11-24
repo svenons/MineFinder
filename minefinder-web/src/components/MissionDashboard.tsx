@@ -16,6 +16,7 @@
  */
 
 import type { Mission } from '../types/mission.types';
+import { useTelemetryStore } from '../stores/telemetryStore';
 
 /**
  * Component properties for mission monitoring and control
@@ -37,6 +38,12 @@ export function MissionDashboard({
   onAbort,
   onExportPathFinder,
 }: MissionDashboardProps) {
+  const tel = useTelemetryStore();
+  
+  // Get selected attachment and algorithm names
+  const selectedAttachment = tel.attachments.find(a => a.id === tel.selectedAttachmentId);
+  const selectedAlgorithm = selectedAttachment?.algorithms.find(alg => alg.id === tel.selectedAlgorithmId);
+  
   if (!mission) {
     return (
       <div
@@ -110,6 +117,35 @@ export function MissionDashboard({
         <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
           Created: {formatTimestamp(mission.created_at)}
         </div>
+        
+        {/* Attachment and Algorithm Info */}
+        {(selectedAttachment || selectedAlgorithm) && (
+          <div style={{ 
+            marginTop: '8px', 
+            padding: '8px', 
+            backgroundColor: 'var(--color-background-elevated)', 
+            borderRadius: '4px',
+            fontSize: '12px'
+          }}>
+            {selectedAttachment && (
+              <div style={{ marginBottom: '4px' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Attachment: </span>
+                <span style={{ fontWeight: 'bold', color: 'var(--color-text)' }}>
+                  {selectedAttachment.name}
+                  {selectedAttachment.id === 'simulation' && ' 🎮'}
+                </span>
+              </div>
+            )}
+            {selectedAlgorithm && (
+              <div>
+                <span style={{ color: 'var(--color-text-muted)' }}>Algorithm: </span>
+                <span style={{ fontWeight: 'bold', color: 'var(--color-text)' }}>
+                  {selectedAlgorithm.name || selectedAlgorithm.id}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div
           style={{

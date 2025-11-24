@@ -29,6 +29,8 @@ interface MissionFormProps {
   onClear: () => void;                      // Clear both positions
   onCreateMission: () => void;              // Create and start mission
   disabled?: boolean;                       // Disable during active missions
+  simulationEnabled?: boolean;              // Whether simulation mode is enabled
+  mineCount?: number;                       // Number of mines placed (for validation)
 }
 
 export function MissionForm({
@@ -41,10 +43,19 @@ export function MissionForm({
   onClear,
   onCreateMission,
   disabled = false,
+  simulationEnabled = false,
+  mineCount = 0,
 }: MissionFormProps) {
 
   // Mission can only be created when both positions are set and no mission is active
-  const canCreate = startPosition !== null && goalPosition !== null && !disabled;
+  // In simulation mode, at least one mine must be placed
+  const hasPositions = startPosition !== null && goalPosition !== null;
+  const hasRequiredMines = !simulationEnabled || mineCount > 0;
+  const canCreate = hasPositions && !disabled && hasRequiredMines;
+  
+  const validationMessage = simulationEnabled && mineCount === 0 && hasPositions
+    ? 'Place at least one mine before starting mission'
+    : null;
 
   return (
     <div className="mission-form" style={{ padding: '16px' }}>
@@ -174,6 +185,21 @@ export function MissionForm({
           Create Mission
         </button>
       </div>
+
+      {/* Validation message */}
+      {validationMessage && (
+        <div style={{
+          marginTop: '12px',
+          padding: '8px',
+          backgroundColor: 'rgba(170, 170, 0, 0.1)',
+          borderRadius: '4px',
+          fontSize: '12px',
+          color: 'var(--color-warning)',
+          border: '1px solid rgba(170, 170, 0, 0.3)',
+        }}>
+          ⚠️ {validationMessage}
+        </div>
+      )}
 
       {/* Instructions */}
       <div

@@ -252,7 +252,9 @@ export function Grid({
       if (existing) {
         simStore.removeMine(existing.id);
       } else {
-        simStore.addMine({ gps, radius_m: simStore.mine_buffer_m });
+        // Convert GPS to grid coordinates
+        const gridPos = coordService.gpsToGrid(gps);
+        simStore.addMine({ gps, x_cm: gridPos.x_cm, y_cm: gridPos.y_cm, radius_m: simStore.mine_buffer_m });
       }
       return; // do not set start/goal while placing mines
     }
