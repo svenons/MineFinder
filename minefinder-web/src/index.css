@@ -91,6 +91,8 @@ body {
   min-width: 320px;
   height: 100vh;
   overflow: hidden;
+  background-color: var(--color-background);
+  color: var(--color-text);
 }
 
 h1 {

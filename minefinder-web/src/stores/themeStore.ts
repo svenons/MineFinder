@@ -28,17 +28,25 @@ const getInitialTheme = (): Theme => {
   return 'dark';
 };
 
-export const useThemeStore = create<ThemeState>((set) => ({
-  theme: getInitialTheme(),
+export const useThemeStore = create<ThemeState>((set) => {
+  const initialTheme = getInitialTheme();
+  // Apply theme immediately
+  document.documentElement.setAttribute('data-theme', initialTheme);
   
-  toggleTheme: () => set((state) => {
-    const newTheme = state.theme === 'light' ? 'dark' : 'light';
-    localStorage.setItem('mf.theme', newTheme);
-    return { theme: newTheme };
-  }),
+  return {
+    theme: initialTheme,
   
-  setTheme: (theme: Theme) => {
-    localStorage.setItem('mf.theme', theme);
-    set({ theme });
-  },
-}));
+    toggleTheme: () => set((state) => {
+      const newTheme = state.theme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('mf.theme', newTheme);
+      document.documentElement.setAttribute('data-theme', newTheme);
+      return { theme: newTheme };
+    }),
+  
+    setTheme: (theme: Theme) => {
+      localStorage.setItem('mf.theme', theme);
+      document.documentElement.setAttribute('data-theme', theme);
+      set({ theme });
+    },
+  };
+});

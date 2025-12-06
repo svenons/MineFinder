@@ -1,0 +1,24 @@
+# MineFinder PathFinder Requirements
+
+# MQTT Communication
+paho-mqtt>=1.6.1
+
+# Configuration
+python-dotenv>=1.0.0
+
+# Image Processing
+Pillow>=10.0.0
+opencv-python>=4.8.0
+
+# Drone Control (optional - only for real mode)
+dronekit>=2.9.2
+pymavlink>=2.4.37
+dronekit-sitl>=3.3.0  # For simulation testing
+
+# Machine Learning (uses existing EXP_T-ML-LWIR dependencies)
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0
+
+# Utilities
+dataclasses-json>=0.6.0  # For JSON serialization

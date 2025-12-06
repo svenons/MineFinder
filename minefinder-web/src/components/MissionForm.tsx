@@ -29,8 +29,6 @@ interface MissionFormProps {
   onClear: () => void;                      // Clear both positions
   onCreateMission: () => void;              // Create and start mission
   disabled?: boolean;                       // Disable during active missions
-  simulationEnabled?: boolean;              // Whether simulation mode is enabled
-  mineCount?: number;                       // Number of mines placed (for validation)
 }
 
 export function MissionForm({
@@ -43,19 +41,10 @@ export function MissionForm({
   onClear,
   onCreateMission,
   disabled = false,
-  simulationEnabled = false,
-  mineCount = 0,
 }: MissionFormProps) {
 
   // Mission can only be created when both positions are set and no mission is active
-  // In simulation mode, at least one mine must be placed
-  const hasPositions = startPosition !== null && goalPosition !== null;
-  const hasRequiredMines = !simulationEnabled || mineCount > 0;
-  const canCreate = hasPositions && !disabled && hasRequiredMines;
-  
-  const validationMessage = simulationEnabled && mineCount === 0 && hasPositions
-    ? 'Place at least one mine before starting mission'
-    : null;
+  const canCreate = startPosition !== null && goalPosition !== null && !disabled;
 
   return (
     <div className="mission-form" style={{ padding: '16px' }}>
@@ -63,7 +52,7 @@ export function MissionForm({
 
       {/* Mode selector */}
       <div style={{ marginBottom: '16px' }}>
-        <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-secondary)' }}>
+        <label style={{ display: 'block', marginBottom: '8px', color: '#ccc' }}>
           Click mode:
         </label>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -73,12 +62,11 @@ export function MissionForm({
             style={{
               flex: 1,
               padding: '8px',
-              backgroundColor: mode === 'start' ? '#e8f5e9' : 'var(--color-background-elevated)',
-              border: mode === 'start' ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
-              color: mode === 'start' ? 'var(--color-success)' : 'var(--color-text)',
+              backgroundColor: mode === 'start' ? '#0a0' : '#333',
+              border: mode === 'start' ? '2px solid #0f0' : '1px solid #555',
+              color: '#fff',
               cursor: disabled ? 'not-allowed' : 'pointer',
               opacity: disabled ? 0.5 : 1,
-              fontWeight: mode === 'start' ? 'bold' : 'normal',
             }}
           >
             {mode === 'start' ? '🟢 ' : ''}Set Start (A)
@@ -89,12 +77,11 @@ export function MissionForm({
             style={{
               flex: 1,
               padding: '8px',
-              backgroundColor: mode === 'goal' ? '#e3f2fd' : 'var(--color-background-elevated)',
-              border: mode === 'goal' ? '2px solid var(--color-info)' : '1px solid var(--color-border)',
-              color: mode === 'goal' ? 'var(--color-info)' : 'var(--color-text)',
+              backgroundColor: mode === 'goal' ? '#06a' : '#333',
+              border: mode === 'goal' ? '2px solid #06f' : '1px solid #555',
+              color: '#fff',
               cursor: disabled ? 'not-allowed' : 'pointer',
               opacity: disabled ? 0.5 : 1,
-              fontWeight: mode === 'goal' ? 'bold' : 'normal',
             }}
           >
             {mode === 'goal' ? '🔵 ' : ''}Set Goal (B)
@@ -107,43 +94,41 @@ export function MissionForm({
         <div
           style={{
             padding: '12px',
-            backgroundColor: 'var(--color-background-hover)',
+            backgroundColor: '#2a2a2a',
             borderRadius: '4px',
             marginBottom: '8px',
           }}
         >
-          <div style={{ fontWeight: 'bold', color: 'var(--color-success)', marginBottom: '4px' }}>
+          <div style={{ fontWeight: 'bold', color: '#0f0', marginBottom: '4px' }}>
             Start Position (A):
           </div>
           {startPosition ? (
-            <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>
-              {startPosition.gps
-                ? `GPS: ${startPosition.gps.latitude.toFixed(6)}, ${startPosition.gps.longitude.toFixed(6)}`
-                : 'GPS: —'}
+            <div style={{ fontSize: '14px', color: '#ccc' }}>
+              ({startPosition.x_cm}cm, {startPosition.y_cm}cm) = ({startPosition.x_m.toFixed(2)}m,{' '}
+              {startPosition.y_m.toFixed(2)}m)
             </div>
           ) : (
-            <div style={{ fontSize: '14px', color: 'var(--color-text-disabled)', fontStyle: 'italic' }}>Not set</div>
+            <div style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>Not set</div>
           )}
         </div>
 
         <div
           style={{
             padding: '12px',
-            backgroundColor: 'var(--color-background-hover)',
+            backgroundColor: '#2a2a2a',
             borderRadius: '4px',
           }}
         >
-          <div style={{ fontWeight: 'bold', color: 'var(--color-info)', marginBottom: '4px' }}>
+          <div style={{ fontWeight: 'bold', color: '#06f', marginBottom: '4px' }}>
             Goal Position (B):
           </div>
           {goalPosition ? (
-            <div style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>
-              {goalPosition.gps
-                ? `GPS: ${goalPosition.gps.latitude.toFixed(6)}, ${goalPosition.gps.longitude.toFixed(6)}`
-                : 'GPS: —'}
+            <div style={{ fontSize: '14px', color: '#ccc' }}>
+              ({goalPosition.x_cm}cm, {goalPosition.y_cm}cm) = ({goalPosition.x_m.toFixed(2)}m,{' '}
+              {goalPosition.y_m.toFixed(2)}m)
             </div>
           ) : (
-            <div style={{ fontSize: '14px', color: 'var(--color-text-disabled)', fontStyle: 'italic' }}>Not set</div>
+            <div style={{ fontSize: '14px', color: '#666', fontStyle: 'italic' }}>Not set</div>
           )}
         </div>
       </div>
@@ -156,9 +141,9 @@ export function MissionForm({
           style={{
             flex: 1,
             padding: '10px',
-            backgroundColor: 'var(--color-background-elevated)',
-            border: '1px solid var(--color-border)',
-            color: 'var(--color-text)',
+            backgroundColor: '#444',
+            border: '1px solid #666',
+            color: '#fff',
             cursor: disabled || (!startPosition && !goalPosition) ? 'not-allowed' : 'pointer',
             opacity: disabled || (!startPosition && !goalPosition) ? 0.5 : 1,
           }}
@@ -166,17 +151,14 @@ export function MissionForm({
           Clear
         </button>
         <button
-          onClick={() => {
-            console.log('[MissionForm] Create Mission button clicked!', { canCreate, disabled, startPosition, goalPosition });
-            onCreateMission();
-          }}
+          onClick={onCreateMission}
           disabled={!canCreate}
           style={{
             flex: 2,
             padding: '10px',
-            backgroundColor: canCreate ? '#e8f5e9' : 'var(--color-background-elevated)',
-            border: canCreate ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
-            color: canCreate ? 'var(--color-success)' : 'var(--color-text)',
+            backgroundColor: canCreate ? '#0a0' : '#333',
+            border: canCreate ? '2px solid #0f0' : '1px solid #555',
+            color: '#fff',
             cursor: canCreate ? 'pointer' : 'not-allowed',
             opacity: canCreate ? 1 : 0.5,
             fontWeight: 'bold',
@@ -186,34 +168,18 @@ export function MissionForm({
         </button>
       </div>
 
-      {/* Validation message */}
-      {validationMessage && (
-        <div style={{
-          marginTop: '12px',
-          padding: '8px',
-          backgroundColor: 'rgba(170, 170, 0, 0.1)',
-          borderRadius: '4px',
-          fontSize: '12px',
-          color: 'var(--color-warning)',
-          border: '1px solid rgba(170, 170, 0, 0.3)',
-        }}>
-          ⚠️ {validationMessage}
-        </div>
-      )}
-
       {/* Instructions */}
       <div
         style={{
           marginTop: '16px',
           padding: '12px',
-          backgroundColor: 'var(--color-background-elevated)',
+          backgroundColor: '#1a1a1a',
           borderRadius: '4px',
           fontSize: '12px',
-          color: 'var(--color-text-secondary)',
-          border: '1px solid var(--color-border)',
+          color: '#999',
         }}
       >
-        <div style={{ fontWeight: 'bold', marginBottom: '8px', color: 'var(--color-text)' }}>Instructions:</div>
+        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Instructions:</div>
         <ol style={{ margin: 0, paddingLeft: '20px' }}>
           <li>Select "Set Start (A)" or "Set Goal (B)" mode</li>
           <li>Click on the grid to set the position</li>

@@ -13,90 +13,103 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MapContainer, TileLayer, useMap, useMapEvents, Polyline, CircleMarker, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap, Marker, Popup, useMapEvents } from 'react-leaflet';
+import { DivIcon } from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import type { Position, AggregatedDetection } from '../types/mission.types';
+import type { Position } from '../types/mission.types';
 import { CoordinateService } from '../services/CoordinateService';
-import { useSimulationStore } from '../stores/simulationStore';
-import { useTelemetryStore } from '../stores/telemetryStore';
+import type { GPSCoordinate } from '../services/CoordinateService';
 
 /**
  * Grid component properties
  * Defines the mission area dimensions and interaction callbacks
  */
 interface GridProps {
-  width_cm: number;                         // Grid width in centimeters
-  height_cm: number;                        // Grid height in centimeters
-  metres_per_cm: number;                    // Conversion factor for display
-  detections?: AggregatedDetection[];       // Mine detection markers to display
-  startPosition?: Position | null;          // Mission start point (A)
-  goalPosition?: Position | null;           // Mission goal point (B)
-  onCellClick?: (position: Position) => void; // Callback when user clicks a cell
-  showGrid?: boolean;                       // Toggle grid line visibility
+  startPosition?: Position | null;          // Mission start point (A) with GPS
+  goalPosition?: Position | null;           // Mission goal point (B) with GPS
+  onPositionClick?: (gps: GPSCoordinate) => void; // Callback when user clicks map with GPS coords
   disabled?: boolean;                       // Disable interaction during active missions
+}
+
+/**
+ * Custom marker icons for A and B points
+ */
+const createMarkerIcon = (label: string, color: string): DivIcon => {
+  return new DivIcon({
+    html: `<div style="
+      background-color: ${color};
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 3px solid white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: white;
+      font-size: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    ">${label}</div>`,
+    className: 'custom-marker',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
+};
+
+const markerIconA = createMarkerIcon('A', '#22c55e');
+const markerIconB = createMarkerIcon('B', '#3b82f6');
+
+/**
+ * Internal component to handle map click events for placing waypoints
+ */
+function MapClickHandler({ onMapClick, disabled }: { onMapClick: (gps: GPSCoordinate) => void; disabled: boolean }) {
+  useMapEvents({
+    click: (e) => {
+      if (!disabled) {
+        onMapClick({
+          latitude: e.latlng.lat,
+          longitude: e.latlng.lng,
+        });
+      }
+    },
+  });
+  return null;
 }
 
 /**
  * Internal component to update Leaflet map view without recreating the map
  * Leaflet requires this pattern to update center/zoom after initial render
  */
-function MapUpdater({ center, zoom, onReady }: { center: [number, number]; zoom: number; onReady?: (map: L.Map) => void; }) {
+function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
     map.setView(center, zoom);
   }, [center, zoom, map]);
-  useEffect(() => {
-    onReady?.(map);
-  }, [map, onReady]);
-  return null;
-}
-
-function MapEventsBridge({ onClick, onMoveZoom, onMouseMove }: { onClick?: (latlng: L.LatLng) => void; onMoveZoom?: () => void; onMouseMove?: (latlng: L.LatLng) => void; }) {
-  useMapEvents({
-    click(e) {
-      onClick?.(e.latlng);
-    },
-    move() {
-      onMoveZoom?.();
-    },
-    zoom() {
-      onMoveZoom?.();
-    },
-    mousemove(e) {
-      onMouseMove?.(e.latlng);
-    }
-  });
   return null;
 }
 
 export function Grid({
-  width_cm,
-  height_cm,
-  metres_per_cm,
-  detections = [],
   startPosition = null,
   goalPosition = null,
-  onCellClick,
-  showGrid = true,
+  onPositionClick,
   disabled = false,
 }: GridProps) {
-  const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
-  const [hoverPixel, setHoverPixel] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // Base location in GPS coordinates (lat, lon)
   const [location, setLocation] = useState<[number, number]>([51.505, -0.09]);
   const [mapCenter, setMapCenter] = useState<[number, number]>([51.505, -0.09]);
   // Set maximum zoom for satellite imagery detail
   const [zoom, setZoom] = useState(19);
-  const [containerSize, setContainerSize] = useState({ width: 1000, height: 600 });
   
-  // Coordinate conversion service for GPS/grid translation
-  const [coordService, setCoordService] = useState<CoordinateService | null>(null);
-  // Leaflet map instance and scaling
-  const [leafletMap, setLeafletMap] = useState<L.Map | null>(null as any);
-  const [metersPerPixel, setMetersPerPixel] = useState<number>(0);
-  const [originPixel, setOriginPixel] = useState<{x:number;y:number}>({x:0,y:0});
+  // Coordinate conversion service for GPS/grid translation (used when we add grid-based features)
+  const [, setCoordService] = useState<CoordinateService | null>(null);
+  
+  // Handle map click - pass GPS coordinates up
+  const handleMapClick = useCallback((gps: GPSCoordinate) => {
+    if (onPositionClick) {
+      onPositionClick(gps);
+    }
+  }, [onPositionClick]);
 
   // Obtain device GPS location on mount
   useEffect(() => {
@@ -110,7 +123,7 @@ export function Grid({
       // Initialize coordinate service with obtained GPS origin
       const service = new CoordinateService(
         { latitude: lat, longitude: lon },
-        metres_per_cm
+        0.01 // 1cm = 0.01m
       );
       setCoordService(service);
     };
@@ -170,290 +183,55 @@ export function Grid({
     };
   }, []);
 
-  // Update canvas dimensions on window resize
-  useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        const parent = containerRef.current.parentElement;
-        if (parent) {
-          setContainerSize({
-            width: parent.clientWidth - 48,
-            height: parent.clientHeight - 48,
-          });
-        }
-      }
-    };
-    
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
-  }, []);
-
-  // Calculate pixels-per-meter using Leaflet map at current zoom
-  const pixelsPerMeter = metersPerPixel > 0 ? (1 / metersPerPixel) : 0;
-
-  // Canvas size ties to container
-  const canvasWidth = containerSize.width - 0; // fill available width
-  const canvasHeight = containerSize.height - 0; // fill available height
-
-  const recalcScale = useCallback(() => {
-    if (!leafletMap) return;
-    const container = leafletMap.getContainer();
-    const bounds = container.getBoundingClientRect();
-    const center = leafletMap.getCenter();
-    // Use center point to compute meters per pixel
-    const p1 = leafletMap.latLngToContainerPoint(center);
-    const p2 = L.point(p1.x + 1, p1.y);
-    const ll1 = leafletMap.containerPointToLatLng(p1);
-    const ll2 = leafletMap.containerPointToLatLng(p2);
-    const mPerPixel = leafletMap.distance(ll1, ll2);
-    setMetersPerPixel(mPerPixel);
-    // Origin pixel for alignment (wrap to nearest world copy)
-    const wrappedOrigin = L.latLng(location[0], location[1]).wrap();
-    setOriginPixel(leafletMap.latLngToContainerPoint(wrappedOrigin));
-    // Update container size from actual map container
-    setContainerSize({ width: bounds.width, height: bounds.height });
-  }, [leafletMap, location]);
-
-  useEffect(() => {
-    recalcScale();
-  }, [recalcScale, zoom, mapCenter]);
-
-  // Keep React zoom/center states in sync with Leaflet when user interacts
-  useEffect(() => {
-    if (!leafletMap) return;
-    const handler = () => {
-      const c = leafletMap.getCenter();
-      setMapCenter([c.lat, c.lng]);
-      setZoom(leafletMap.getZoom());
-      recalcScale();
-    };
-    leafletMap.on('move zoom', handler);
-    return () => {
-      leafletMap.off('move zoom', handler);
-    };
-  }, [leafletMap, recalcScale]);
-
-  // Convert map click (latlng) to grid coordinates via CoordinateService
-  const simStore = useSimulationStore();
-  const telStore = useTelemetryStore();
-
-  const handleMapClickLatLng = useCallback((latlng: L.LatLng) => {
-    if (!coordService) return;
-
-    // Simulation mode: place/remove simulated mines when placing mode is active
-    if (simStore.enabled && simStore.placingMines) {
-      const gps = { latitude: latlng.lat, longitude: latlng.lng };
-      // Remove if a mine is very close (within ~10px equivalence): check by distance in meters using current scale
-      const existing = simStore.mines.find(m => {
-        const d = CoordinateService.calculateDistance({ latitude: m.gps.latitude, longitude: m.gps.longitude }, gps);
-        return d < Math.max(1.0, m.radius_m * 0.5);
-      });
-      if (existing) {
-        simStore.removeMine(existing.id);
-      } else {
-        // Convert GPS to grid coordinates
-        const gridPos = coordService.gpsToGrid(gps);
-        simStore.addMine({ gps, x_cm: gridPos.x_cm, y_cm: gridPos.y_cm, radius_m: simStore.mine_buffer_m });
-      }
-      return; // do not set start/goal while placing mines
-    }
-
-    if (disabled) return;
-
-    const pos = coordService.gpsToGrid({ latitude: latlng.lat, longitude: latlng.lng });
-    // Emit click position with absolute GPS so UI can display true coordinates.
-    if (onCellClick) {
-      onCellClick({ x_cm: pos.x_cm, y_cm: pos.y_cm, x_m: pos.x_m, y_m: pos.y_m, gps: { latitude: latlng.lat, longitude: latlng.lng } as any });
-    }
-  }, [coordService, disabled, onCellClick, simStore]);
-
-  // Helpers to convert grid centimeters to container pixels
-  const gridCmToPixel = useCallback((x_cm: number, y_cm: number): { x: number; y: number } | null => {
-    if (!leafletMap || !coordService) return null;
-    const gps = coordService.gridToGPS(x_cm, y_cm);
-    const wrapped = L.latLng(gps.latitude, gps.longitude).wrap();
-    const pt = leafletMap.latLngToContainerPoint(wrapped);
-    return { x: pt.x, y: pt.y };
-  }, [leafletMap, coordService]);
-
-  const metersToCm = useCallback((meters: number) => meters / metres_per_cm, [metres_per_cm]);
-
-  // Track mouse position over grid using GPS conversion
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!leafletMap || !coordService) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const containerPoint = L.point(e.clientX - rect.left, e.clientY - rect.top);
-    const latlng = leafletMap.containerPointToLatLng(containerPoint);
-    const pos = coordService.gpsToGrid({ latitude: latlng.lat, longitude: latlng.lng });
-    // Bound check
-    if (pos.x_cm >= 0 && pos.y_cm >= 0 && pos.x_cm <= width_cm && pos.y_cm <= height_cm) {
-      setHoveredCell({ x: pos.x_cm, y: pos.y_cm });
-      setHoverPixel({ x: containerPoint.x, y: containerPoint.y });
-    } else {
-      setHoveredCell(null);
-      setHoverPixel(null);
-    }
-  };
-
   return (
-    <div className="grid-container" ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+    <div className="grid-container" ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Satellite map controls */}
       <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', gap: '8px', flexDirection: 'column', backgroundColor: 'rgba(0,0,0,0.7)', padding: '8px', borderRadius: '4px' }}>
-        <button onClick={() => setZoom(prev => Math.min(19, prev + 1))} style={{ fontSize: '18px', padding: '4px 8px' }} title="Zoom in satellite">+</button>
+        <button onClick={() => setZoom(prev => Math.min(21, prev + 1))} style={{ fontSize: '18px', padding: '4px 8px' }} title="Zoom in satellite">+</button>
         <button onClick={() => setZoom(prev => Math.max(10, prev - 1))} style={{ fontSize: '18px', padding: '4px 8px' }} title="Zoom out satellite">-</button>
         <button onClick={() => { setMapCenter(location); setZoom(19); }} style={{ fontSize: '14px', padding: '4px 8px' }} title="Reset to origin">Reset</button>
-        {/* Simulation mine placement toggle */}
-        {simStore.enabled && (
-          <button
-            onClick={() => simStore.setPlacingMines(!simStore.placingMines)}
-            style={{ fontSize: '12px', padding: '4px 8px', backgroundColor: simStore.placingMines ? '#a60' : 'var(--color-background-elevated)', border: '1px solid #aa6', color: 'var(--color-text)' }}
-            title="Toggle placing simulated mines"
-          >
-            {simStore.placingMines ? 'Placing Mines…' : 'Place Sim Mines'}
-          </button>
-        )}
-        <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', textAlign: 'center' }}>Z: {zoom}</div>
+        <div style={{ fontSize: '10px', color: '#ccc', textAlign: 'center' }}>Z: {zoom}</div>
       </div>
 
-      {/* Grid canvas with satellite underlay */}
-      <div className="grid-canvas" style={{ width: canvasWidth, height: canvasHeight, position: 'relative', border: '2px solid var(--color-border-subtle)', cursor: disabled ? 'not-allowed' : 'crosshair', overflow: 'hidden' }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoveredCell(null)}
-      >
-        {/* Leaflet satellite imagery base layer */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
-          <MapContainer center={mapCenter} zoom={zoom} style={{ width: '100%', height: '100%' }} zoomControl={true} scrollWheelZoom={true} doubleClickZoom={true} touchZoom={true} attributionControl={false} worldCopyJump={true}>
-            <MapUpdater center={mapCenter} zoom={zoom} onReady={(m) => setLeafletMap(m)} />
-            <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution='ESRI' maxZoom={19} />
-            {/* Bridge map events to recalc scale and handle clicks */}
-            {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
-            <MapEventsBridge onClick={handleMapClickLatLng} onMoveZoom={recalcScale} onMouseMove={(latlng) => {
-              if (!coordService) return;
-              const pos = coordService.gpsToGrid({ latitude: latlng.lat, longitude: latlng.lng });
-              if (pos.x_cm >= 0 && pos.x_cm < width_cm && pos.y_cm >= 0 && pos.y_cm < height_cm) {
-                setHoveredCell({ x: pos.x_cm, y: pos.y_cm });
-              } else {
-                setHoveredCell(null);
-              }
-            }} />
+      {/* Full-size Map */}
+      <div style={{ flex: 1, position: 'relative', border: '2px solid #333', overflow: 'hidden' }}>
+        {/* Leaflet satellite imagery base layer - fully interactive */}
+        <MapContainer center={mapCenter} zoom={zoom} style={{ width: '100%', height: '100%' }} zoomControl={false} scrollWheelZoom={true} doubleClickZoom={true} touchZoom={true} dragging={true} attributionControl={false}>
+          <MapUpdater center={mapCenter} zoom={zoom} />
+          <MapClickHandler onMapClick={handleMapClick} disabled={disabled} />
+          <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" attribution='ESRI' maxZoom={21} />
+          
+          {/* Point A marker - GPS bound, stays in place when zooming/panning */}
+          {startPosition?.gps && (
+            <Marker position={[startPosition.gps.latitude, startPosition.gps.longitude]} icon={markerIconA}>
+              <Popup>
+                <strong>Point A (Start)</strong><br />
+                {startPosition.gps.latitude.toFixed(6)}, {startPosition.gps.longitude.toFixed(6)}
+              </Popup>
+            </Marker>
+          )}
+          
+          {/* Point B marker - GPS bound, stays in place when zooming/panning */}
+          {goalPosition?.gps && (
+            <Marker position={[goalPosition.gps.latitude, goalPosition.gps.longitude]} icon={markerIconB}>
+              <Popup>
+                <strong>Point B (Goal)</strong><br />
+                {goalPosition.gps.latitude.toFixed(6)}, {goalPosition.gps.longitude.toFixed(6)}
+              </Popup>
+            </Marker>
+          )}
+        </MapContainer>
+      </div>
 
-            {/* Telemetry overlays */}
-            {telStore.plannedPathGps.length > 1 && (
-              <Polyline positions={telStore.plannedPathGps.map(p => [p.latitude, p.longitude] as [number, number])} pathOptions={{ color: '#00ffff', weight: 3 }} />
-            )}
-            {telStore.travelledPathGps.length > 1 && (
-              <Polyline positions={telStore.travelledPathGps.map(p => [p.latitude, p.longitude] as [number, number])} pathOptions={{ color: '#ffff00', weight: 2 }} />
-            )}
-            {telStore.droneGps && (
-              <CircleMarker center={[telStore.droneGps.latitude, telStore.droneGps.longitude]} radius={6} pathOptions={{ color: '#66f', weight: 2 }} />
-            )}
-
-            {/* Simulated mines (render as circles with meter radius) */}
-            {simStore.enabled && simStore.mines.map(m => (
-              <Circle 
-                key={m.id} 
-                center={[m.gps.latitude, m.gps.longitude]} 
-                radius={m.radius_m} 
-                pathOptions={{ 
-                  color: m.detected ? '#ff0000' : '#ffa500',  // Red if detected, orange if not
-                  weight: m.detected ? 2 : 1, 
-                  fillOpacity: m.detected ? 0.3 : 0.1 
-                }} 
-              />
-            ))}
-          </MapContainer>
+      {/* Coordinate display with GPS info */}
+      <div style={{ height: '32px', padding: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #333' }}>
+        <div style={{ color: '#666', fontSize: '11px' }}>
+          A: {startPosition?.gps ? `${startPosition.gps.latitude.toFixed(5)}, ${startPosition.gps.longitude.toFixed(5)}` : 'Click to set'}
         </div>
-
-        {showGrid && pixelsPerMeter > 0 && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              pointerEvents: 'none',
-              backgroundImage:
-                `linear-gradient(rgba(50, 50, 50, 0.35) 1px, transparent 1px),` +
-                `linear-gradient(90deg, rgba(50, 50, 50, 0.35) 1px, transparent 1px),` +
-                `linear-gradient(rgba(40, 60, 40, 0.6) 2px, transparent 2px),` +
-                `linear-gradient(90deg, rgba(40, 60, 40, 0.6) 2px, transparent 2px)`,
-              backgroundSize:
-                `${pixelsPerMeter}px ${pixelsPerMeter}px, ` +
-                `${pixelsPerMeter}px ${pixelsPerMeter}px, ` +
-                `${pixelsPerMeter * 10}px ${pixelsPerMeter * 10}px, ` +
-                `${pixelsPerMeter * 10}px ${pixelsPerMeter * 10}px`,
-              backgroundPosition:
-                `${originPixel.x % pixelsPerMeter}px ${originPixel.y % pixelsPerMeter}px, ` +
-                `${originPixel.x % pixelsPerMeter}px ${originPixel.y % pixelsPerMeter}px, ` +
-                `${originPixel.x % (pixelsPerMeter * 10)}px ${originPixel.y % (pixelsPerMeter * 10)}px, ` +
-                `${originPixel.x % (pixelsPerMeter * 10)}px ${originPixel.y % (pixelsPerMeter * 10)}px`,
-            }}
-          />
-        )}
-
-        {detections.map((detection) => {
-          const x_m = detection.position.x_m;
-          const y_m = detection.position.y_m;
-          const snapped_cm = { x_cm: metersToCm(Math.floor(x_m)), y_cm: metersToCm(Math.floor(y_m)) };
-          const pt = gridCmToPixel(snapped_cm.x_cm, snapped_cm.y_cm);
-          if (!pt || pixelsPerMeter <= 0) return null;
-          return (
-            <div
-              key={detection.position_key}
-              className="detection-marker"
-              style={{ position: 'absolute', left: pt.x, top: pt.y, width: pixelsPerMeter, height: pixelsPerMeter, backgroundColor: `rgba(255, 0, 0, ${detection.confidence})`, border: '1px solid rgba(255, 0, 0, 0.8)', pointerEvents: 'none' }}
-              title={`Mine: ${detection.confidence.toFixed(2)} confidence`}
-            />
-          );
-        })}
-
-        {startPosition && (() => {
-          const x_m = startPosition.x_m; const y_m = startPosition.y_m;
-          const exact_cm = { x_cm: metersToCm(x_m), y_cm: metersToCm(y_m) };
-          const pt = gridCmToPixel(exact_cm.x_cm, exact_cm.y_cm);
-          if (!pt) return null;
-          const size = 20;
-          return (
-            <div className="start-marker" style={{ position: 'absolute', left: pt.x, top: pt.y, width: size, height: size, transform: 'translate(-50%, -50%)', borderRadius: '50%', backgroundColor: '#00ff00', border: '2px solid #0f0', color: '#000', pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', zIndex: 2000, boxShadow: '0 0 0 2px rgba(0,0,0,0.4)' }}>A</div>
-          );
-        })()}
-
-        {goalPosition && (() => {
-          const x_m = goalPosition.x_m; const y_m = goalPosition.y_m;
-          const exact_cm = { x_cm: metersToCm(x_m), y_cm: metersToCm(y_m) };
-          const pt = gridCmToPixel(exact_cm.x_cm, exact_cm.y_cm);
-          if (!pt) return null;
-          const size = 20;
-          return (
-            <div className="goal-marker" style={{ position: 'absolute', left: pt.x, top: pt.y, width: size, height: size, transform: 'translate(-50%, -50%)', borderRadius: '50%', backgroundColor: '#0064ff', border: '2px solid #06f', color: '#fff', pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', zIndex: 2000, boxShadow: '0 0 0 2px rgba(0,0,0,0.4)' }}>B</div>
-          );
-        })()}
-
-        {hoveredCell && hoverPixel && pixelsPerMeter > 0 && (() => {
-          const x_m = hoveredCell.x * metres_per_cm; const y_m = hoveredCell.y * metres_per_cm;
-          const snapped_cm = { x_cm: metersToCm(Math.floor(x_m)), y_cm: metersToCm(Math.floor(y_m)) };
-          const pt = gridCmToPixel(snapped_cm.x_cm, snapped_cm.y_cm);
-          if (!pt) return null;
-          return (
-            <div className="hover-indicator" style={{ position: 'absolute', left: pt.x, top: pt.y, width: pixelsPerMeter, height: pixelsPerMeter, border: '2px solid #fff', pointerEvents: 'none' }} />
-          );
-        })()}
-      </div>
-
-      {/* Coordinate display with GPS conversion */}
-      <div style={{ height: '24px', marginTop: '8px', width: canvasWidth, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ color: '#666', fontSize: '10px' }}>Center: {mapCenter[0].toFixed(4)}, {mapCenter[1].toFixed(4)}</div>
-        {hoveredCell && coordService && (
-          <div style={{ color: '#ccc', fontSize: '12px', textAlign: 'center' }}>
-            {(() => {
-              const gps = coordService.gridToGPS(hoveredCell.x, hoveredCell.y);
-              return `Hover GPS: ${gps.latitude.toFixed(6)}, ${gps.longitude.toFixed(6)}`;
-            })()}
-          </div>
-        )}
-        <div style={{ color: '#666', fontSize: '10px' }}>Origin: {location[0].toFixed(4)}, {location[1].toFixed(4)}</div>
+        <div style={{ color: '#666', fontSize: '11px' }}>
+          B: {goalPosition?.gps ? `${goalPosition.gps.latitude.toFixed(5)}, ${goalPosition.gps.longitude.toFixed(5)}` : 'Click to set'}
+        </div>
+        <div style={{ color: '#666', fontSize: '11px' }}>Origin: {location[0].toFixed(4)}, {location[1].toFixed(4)}</div>
       </div>
     </div>
   );
