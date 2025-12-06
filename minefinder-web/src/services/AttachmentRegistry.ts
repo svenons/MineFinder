@@ -42,20 +42,23 @@
  */
 
 import type { Attachment, AttachmentRegistry } from '../types/mission.types';
-import attachmentsConfig from '../config/attachments.json';
+// Static config no longer used - attachments are discovered dynamically via MQTT
 
 /**
  * Stateful service managing hardware attachment registry.
  * Single instance created in App.tsx, shared via props to child components.
+ * 
+ * NOTE: Attachments are now discovered dynamically via MQTT heartbeats only.
+ * No static configuration is loaded at startup.
  */
 export class AttachmentRegistryService {
   private registry: AttachmentRegistry;
 
   constructor() {
-    // Initialize with static configuration from attachments.json
+    // Initialize with empty arrays - attachments discovered via MQTT only
     this.registry = {
-      known_attachments: attachmentsConfig.known_attachments as Attachment[],
-      discovered_attachments: attachmentsConfig.discovered_attachments as Attachment[],
+      known_attachments: [],
+      discovered_attachments: [],
       last_updated: Date.now(),
     };
   }

@@ -43,10 +43,6 @@
 
 import type {
   Mission,
-  MissionStartMessage,
-  DetectionMessage,
-  DetectionEvent,
-  BaseMessage,
 } from '../types/mission.types';
 
 import type {
@@ -57,62 +53,17 @@ import type {
 import { DetectionAggregator } from './DetectionAggregator';
 
 /**
- * Static utility class for protocol message handling.
- * All methods are stateless; no instance required.
+ * Static utility class for mission ID generation and PathFinder export.
+ * Legacy message protocol methods removed - now only handles PathFinder integration.
  */
 export class MissionProtocolService {
   /**
-   * Create mission start message for transmission to hardware attachments.
-   * Serializes Mission object into protocol format for BaseCommsAdapter transmission.
-   * Hardware uses this to initialize navigation parameters (start/goal positions,
-   * corridor boundaries, scan patterns, speed limits).
+   * Generate unique mission ID
    */
-  static createMissionStartMessage(mission: Mission): MissionStartMessage {
-    return {
-      type: 'mission_start',
-      ts: Date.now() / 1000, // Unix seconds (PathFinder compatibility)
-      data: {
-        mission_id: mission.mission_id,
-        start: mission.start,
-        goal: mission.goal,
-        corridor: mission.corridor,
-        parameters: mission.parameters,
-      },
-    };
-  }
-
-  /**
-   * Parse incoming detection message from drone
-   */
-  static parseDetectionMessage(message: DetectionMessage): DetectionEvent {
-    return message.data;
-  }
-
-  /**
-   * Create detection message (for testing/simulation)
-   */
-  static createDetectionMessage(event: DetectionEvent): DetectionMessage {
-    return {
-      type: 'drone_scan',
-      ts: event.timestamp,
-      data: event,
-    };
-  }
-
-  /**
-   * Validate incoming message structure
-   */
-  static isValidMessage(message: unknown): message is BaseMessage {
-    if (typeof message !== 'object' || message === null) {
-      return false;
-    }
-
-    const msg = message as Record<string, unknown>;
-    return (
-      typeof msg.type === 'string' &&
-      typeof msg.ts === 'number' &&
-      msg.data !== undefined
-    );
+  static generateMissionId(): string {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 9);
+    return `mission_${timestamp}_${random}`;
   }
 
   /**
@@ -132,15 +83,39 @@ export class MissionProtocolService {
   ): PathFinderWorldExport {
     const mines = aggregator.exportForPathFinder(confidenceThreshold);
 
+    // Normalize coordinates: make start (0,0) and convert everything relative to start
+    const startX = mission.start.x_cm;
+    const startY = mission.start.y_cm;
+
+    const normalizedMines = mines.map(mine => ({
+      x_cm: mine.x_cm - startX,
+      y_cm: mine.y_cm - startY,
+      x_m: mine.x_m - mission.start.x_m,
+      y_m: mine.y_m - mission.start.y_m,
+      gps: mine.gps,
+    }));
+
     return {
       config: {
         width_cm: mission.corridor?.width_cm || 50,
         height_cm: mission.corridor?.height_cm || 30,
         metres_per_cm: mission.metres_per_cm,
       },
-      mines,
-      start: mission.start,
-      goal: mission.goal,
+      mines: normalizedMines,
+      start: {
+        x_cm: 0,
+        y_cm: 0,
+        x_m: 0,
+        y_m: 0,
+        gps: mission.start.gps,
+      },
+      goal: {
+        x_cm: mission.goal.x_cm - startX,
+        y_cm: mission.goal.y_cm - startY,
+        x_m: mission.goal.x_m - mission.start.x_m,
+        y_m: mission.goal.y_m - mission.start.y_m,
+        gps: mission.goal.gps,
+      },
       metadata: {
         mission_id: mission.mission_id,
         created_at: mission.created_at,
@@ -187,20 +162,11 @@ export class MissionProtocolService {
    * Splits by newline, filters empty lines, parses each line as JSON.
    * Used to process PathFinder stdout when using stdin/stdout communication.
    */
-  static parsePathFinderEvents(jsonlStream: string): BaseMessage[] {
+  static parsePathFinderEvents(jsonlStream: string): any[] {
     return jsonlStream
       .split('\n')
       .filter(line => line.trim().length > 0)
-      .map(line => JSON.parse(line) as BaseMessage);
-  }
-
-  /**
-   * Generate mission ID
-   */
-  static generateMissionId(): string {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 9);
-    return `mission_${timestamp}_${random}`;
+      .map(line => JSON.parse(line));
   }
 
   /**

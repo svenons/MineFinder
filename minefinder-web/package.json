@@ -23,12 +23,15 @@
     "build:all": "vite build && electron-builder -mwl --publish never"
   },
   "dependencies": {
+    "@serialport/parser-readline": "^12.0.0",
     "@vis.gl/react-maplibre": "^8.1.0",
     "leaflet": "^1.9.4",
     "maplibre-gl": "^5.10.0",
+    "mqtt": "^5.14.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-leaflet": "^5.0.0",
+    "serialport": "^12.0.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
@@ -56,7 +59,8 @@
     "productName": "MineFinder",
     "files": [
       "dist/**/*",
-      "main.js"
+      "main.js",
+      "preload.cjs"
     ],
     "directories": {
       "buildResources": "assets",

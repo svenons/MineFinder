@@ -2,7 +2,7 @@
  * Main Application Component
  * 
  * Root component orchestrating the Mission Controller interface.
- * Manages application-level state, communication adapter lifecycle,
+ * Manages application-level state, MQTT connection lifecycle,
  * and coordinates interaction between mission planning, detection
  * aggregation, and hardware communication subsystems.
  * 
@@ -13,10 +13,10 @@
  * - Bottom bar: Status indicators and grid metadata
  * 
  * State Flow:
- * Hardware → CommsAdapter → MissionProtocol.parse() → Store.processDetection() → UI
+ * Hardware → MQTT → Stores → UI
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './App.css';
 
 // Components
@@ -29,12 +29,12 @@ import { MissionDashboard } from './components/MissionDashboard';
 import { useMissionStore } from './stores/missionStore';
 import { useDetectionStore } from './stores/detectionStore';
 import { useAttachmentStore } from './stores/attachmentStore';
+import { useMQTTStore } from './stores/mqttStore';
 
 // Services
-import { CommsAdapterFactory } from './services/comms/BaseAdapter';
-import { MissionProtocolService } from './services/MissionProtocol';
+import { mqttService } from './services/mqtt/MQTTClientService';
 import { PathFinderService } from './services/PathFinderService';
-import type { TransportConfig, DetectionMessage } from './types/mission.types';
+import type { Attachment } from './types/mission.types';
 
 function App() {
   // Mission state management via Zustand stores
@@ -60,73 +60,98 @@ function App() {
     selectedAttachmentIds,
     toggleAttachment,
     clearSelection,
-    refreshAttachments,
+    discoverAttachment,
   } = useAttachmentStore();
+
+  // MQTT connection state
+  const { connected: isConnected, connect: mqttConnect, disconnect: mqttDisconnect } = useMQTTStore();
 
   // Local UI state
   const [clickMode, setClickMode] = useState<'start' | 'goal'>('start');
-  const [commsAdapter, setCommsAdapter] = useState<ReturnType<typeof CommsAdapterFactory.create> | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
 
-  // Grid configuration defines mission area dimensions
-  const gridConfig = {
-    width_cm: 50,        // 50cm wide grid
-    height_cm: 30,       // 30cm tall grid
-    metres_per_cm: 0.1,  // Each cm represents 10cm in real world
-  };
+  // Handle detection messages from MQTT
+  const handleDetection = useCallback((detection: any, topic: string) => {
+    // Convert MQTT detection to internal format
+    const attachmentId = topic.split('/')[2]; // minefinder/attachment/{id}/detection
+    processDetection({
+      detection_id: `${attachmentId}-${Date.now()}`,
+      timestamp: detection.ts || Date.now(),
+      position: {
+        x_cm: detection.position?.x_cm || 0,
+        y_cm: detection.position?.y_cm || 0,
+        x_m: detection.position?.x_m || 0,
+        y_m: detection.position?.y_m || 0,
+      },
+      result: detection.result || 'clear',
+      confidence: detection.confidence || 0,
+      sensor_id: detection.sensor_id || attachmentId,
+    });
+  }, [processDetection]);
 
-  // Initialize communications adapter on mount
-  // Currently uses TestCommsAdapter for development without hardware
-  // Change 'type' to 'serial' for LoRa module integration
-  useEffect(() => {
-    const config: TransportConfig = {
-      type: 'test',         // Development mock adapter
-      protocol: 'json',     // JSON encoding (switch to 'binary' for LoRa bandwidth optimization)
-      config: {},           // Transport-specific configuration (port, baud rate, etc.)
-      retry: {
-        max_attempts: 3,    // Retry failed messages up to 3 times
-        backoff_ms: 1000,   // Initial retry delay (exponential backoff)
-        timeout_ms: 5000,   // Discard message after 5 seconds
+  // Handle attachment status messages from MQTT
+  const handleAttachmentStatus = useCallback((status: any, topic: string) => {
+    const attachmentId = topic.split('/')[2]; // minefinder/attachment/{id}/status
+    const attachment: Attachment = {
+      id: attachmentId,
+      name: status.attachment_name || attachmentId,
+      type: status.mode === 'simulator' ? 'thermal' : 'metal_detector',
+      status: status.online ? 'online' : 'offline',
+      last_seen: status.ts || Date.now(),
+      discovered_at: Date.now(),
+      is_discovered: true,
+      communication: {
+        type: 'mqtt',
+        mqtt_topic: topic,
       },
     };
+    discoverAttachment(attachment);
+  }, [discoverAttachment]);
 
-    const adapter = CommsAdapterFactory.create(config);
+  // Initialize MQTT connection on mount
+  useEffect(() => {
+    // Connect to HiveMQ Cloud (or local broker)
+    const config = {
+      brokerUrl: 'broker.hivemq.com', // Default public broker for development
+      port: 8884,                      // WSS port for browser
+      protocol: 'wss' as const,
+      // For HiveMQ Cloud, set credentials:
+      // username: 'your-username',
+      // password: 'your-password',
+    };
 
-    // Register callback for incoming detection messages from hardware
-    adapter.onReceive((message) => {
-      if (message.type === 'drone_scan') {
-        const event = MissionProtocolService.parseDetectionMessage(message as DetectionMessage);
-        processDetection(event);  // Add to detection store for aggregation
+    mqttConnect(config).then((success) => {
+      if (success) {
+        console.log('[App] MQTT connected, setting up handlers');
+        // Register handlers for detection and status messages
+        mqttService.onDetection(handleDetection);
+        mqttService.onAttachmentStatus(handleAttachmentStatus);
       }
-    });
-
-    // Establish connection
-    adapter.initialize().then(() => {
-      setCommsAdapter(adapter);
-      setIsConnected(true);
     });
 
     // Cleanup on unmount
     return () => {
-      adapter.close();
+      mqttDisconnect();
     };
-  }, [processDetection]);
+  }, [mqttConnect, mqttDisconnect, handleDetection, handleAttachmentStatus]);
 
-  // Refresh attachment registry periodically to discover new hardware
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refreshAttachments();  // Polls attachment registry for status updates
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [refreshAttachments]);
-
-  // Handle user clicks on grid cells during mission planning
-  const handleCellClick = (position: NonNullable<typeof draftStart>) => {
+  // Handle user clicks on map during mission planning - receives GPS coordinates
+  const handleMapClick = useCallback((gps: { latitude: number; longitude: number }) => {
     // Disable interaction during active missions
     if (activeMission && activeMission.status === 'active') {
       return;
     }
+
+    // Create position with GPS coordinates
+    const position = {
+      x_cm: 0,  // Will be calculated by PathFinder from GPS
+      y_cm: 0,
+      x_m: 0,
+      y_m: 0,
+      gps: {
+        latitude: gps.latitude,
+        longitude: gps.longitude,
+      },
+    };
 
     // Set start or goal position based on current mode
     if (clickMode === 'start') {
@@ -135,11 +160,15 @@ function App() {
     } else {
       setDraftGoal(position);
     }
-  };
+  }, [activeMission, clickMode, setDraftStart, setDraftGoal]);
 
   // Create mission from draft positions and send to hardware
   const handleCreateMission = () => {
     if (!draftStart || !draftGoal) return;
+    if (!draftStart.gps || !draftGoal.gps) {
+      console.error('Cannot create mission without GPS coordinates');
+      return;
+    }
 
     // Clear previous mission detections
     clearDetections();
@@ -148,14 +177,37 @@ function App() {
     const mission = createMission({
       start: draftStart,
       goal: draftGoal,
-      corridor: gridConfig,
-      metres_per_cm: gridConfig.metres_per_cm,
+      corridor: {
+        width_cm: 5000,    // 50m corridor width
+        height_cm: 3000,   // 30m corridor height
+        metres_per_cm: 0.01,
+      },
+      metres_per_cm: 0.01,
     });
 
-    // Transmit mission parameters to hardware attachments via comms adapter
-    if (commsAdapter) {
-      const message = MissionProtocolService.createMissionStartMessage(mission);
-      commsAdapter.send(message);  // Queued with retry logic in BaseCommsAdapter
+    // Transmit mission parameters to all selected attachments via MQTT
+    if (isConnected && selectedAttachmentIds.size > 0) {
+      // Send mission start command to each selected attachment
+      selectedAttachmentIds.forEach(attachmentId => {
+        mqttService.sendMissionStart(attachmentId, {
+          mission_id: mission.mission_id,
+          start: {
+            lat: draftStart.gps!.latitude,
+            lon: draftStart.gps!.longitude,
+          },
+          goal: {
+            lat: draftGoal.gps!.latitude,
+            lon: draftGoal.gps!.longitude,
+          },
+          parameters: {
+            altitude_m: 10,
+            grid_size_m: 1,       // Each cell is 1m²
+            corridor_width_m: 50,
+            speed_ms: 2,
+            confidence_threshold: 0.5,
+          },
+        });
+      });
     }
 
     // Transition mission to active state
@@ -297,14 +349,9 @@ function App() {
           }}
         >
           <Grid
-            width_cm={gridConfig.width_cm}
-            height_cm={gridConfig.height_cm}
-            metres_per_cm={gridConfig.metres_per_cm}
-            detections={detections}
             startPosition={activeMission ? activeMission.start : draftStart}
             goalPosition={activeMission ? activeMission.goal : draftGoal}
-            onCellClick={handleCellClick}
-            showGrid={true}
+            onPositionClick={handleMapClick}
             disabled={activeMission?.status === 'active'}
           />
         </div>
@@ -349,7 +396,7 @@ function App() {
                 : 'Click to Set Goal (B)'}
             </div>
           )}
-          <div>Grid: {gridConfig.width_cm}×{gridConfig.height_cm}cm</div>
+          <div>Click map to set A/B waypoints</div>
         </div>
       </div>
     </div>

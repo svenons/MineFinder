@@ -27,11 +27,19 @@ export interface PositionM {
 /**
  * Combined position with both coordinate systems
  */
+export interface GPSCoordinateUI {
+  latitude: number;
+  longitude: number;
+  altitude_m?: number;
+}
+
 export interface Position {
   x_cm: number;
   y_cm: number;
   x_m: number;
   y_m: number;
+  /** Absolute GPS coordinates for UI display */
+  gps?: GPSCoordinateUI;
 }
 
 // ============================================================================
@@ -85,6 +93,15 @@ export interface MissionParameters {
   
   /** Communication mode */
   comm_mode?: 'realtime' | 'batch';
+
+  /** Simulation enabled (UI+protocol) */
+  simulation_enabled?: boolean;
+  /** Simulated flight speed in m/s (sent to Pi server when simulation is on) */
+  simulated_speed_ms?: number;
+  /** Mine buffer radius in meters for avoidance (default 3m) */
+  mine_buffer_m?: number;
+  /** Telemetry update rate in Hz (server hint; e.g., 2-10Hz) */
+  telemetry_hz?: number;
 }
 
 export type MissionStatus = 
@@ -221,11 +238,12 @@ export interface SensorSpecs {
 }
 
 // ============================================================================
-// Attachment Registry
+// Attachment Registry (legacy - now managed via Pi serial protocol)
 // ============================================================================
 
 /**
- * Registry configuration structure
+ * @deprecated Use telemetryStore attachments instead
+ * Legacy registry configuration structure
  */
 export interface AttachmentRegistry {
   /** Pre-configured known attachments */
@@ -238,94 +256,3 @@ export interface AttachmentRegistry {
   last_updated: number;
 }
 
-// ============================================================================
-// Communication Protocol
-// ============================================================================
-
-/**
- * Base message structure (follows PathFinder events.py protocol)
- */
-export interface BaseMessage<T = unknown> {
-  /** Message type identifier */
-  type: string;
-  
-  /** Timestamp (Unix epoch) */
-  ts: number;
-  
-  /** Message payload */
-  data: T;
-}
-
-/**
- * Outgoing mission start command
- */
-export type MissionStartMessage = BaseMessage<{
-  mission_id: string;
-  start: Position;
-  goal: Position;
-  corridor?: {
-    width_cm: number;
-    height_cm: number;
-  };
-  parameters: MissionParameters;
-}>;
-
-/**
- * Incoming detection message from drone/attachment
- */
-export type DetectionMessage = BaseMessage<DetectionEvent>;
-
-/**
- * Drone status update message
- */
-export type DroneStatusMessage = BaseMessage<{
-  drone_id: string;
-  position?: Position;
-  battery?: number;
-  status: string;
-}>;
-
-/**
- * Mission acknowledgment from drone
- */
-export type MissionAckMessage = BaseMessage<{
-  mission_id: string;
-  drone_id: string;
-  accepted: boolean;
-  reason?: string;
-}>;
-
-/**
- * Union type for all message types
- */
-export type Message = 
-  | MissionStartMessage
-  | DetectionMessage
-  | DroneStatusMessage
-  | MissionAckMessage;
-
-/**
- * Communication protocol mode
- */
-export type ProtocolMode = 'binary' | 'json';
-
-/**
- * Communication transport configuration
- */
-export interface TransportConfig {
-  /** Transport type */
-  type: 'serial' | 'lora' | 'satellite' | 'wifi' | 'test';
-  
-  /** Protocol mode */
-  protocol: ProtocolMode;
-  
-  /** Transport-specific configuration */
-  config: Record<string, unknown>;
-  
-  /** Retry strategy */
-  retry?: {
-    max_attempts: number;
-    backoff_ms: number;
-    timeout_ms: number;
-  };
-}

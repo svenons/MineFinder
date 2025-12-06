@@ -14,10 +14,11 @@ const createWindow = () => {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    backgroundColor: '#242424',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
 
@@ -117,10 +118,10 @@ ipcMain.handle('pathfinder:run', async (event, { worldExport, pythonPath = 'pyth
   try {
     // PathFinder directory (relative to project root)
     const pathFinderDir = path.join(__dirname, '..', 'PathFinder');
-    const mainPy = path.join(pathFinderDir, 'main.py');
+    const headlessPy = path.join(pathFinderDir, 'headless.py');
 
-    // Spawn Python process
-    const pythonProcess = spawn(pythonPath, [mainPy], {
+    // Spawn Python process with headless version (no GUI, no pygame)
+    const pythonProcess = spawn(pythonPath, [headlessPy], {
       cwd: pathFinderDir,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -144,7 +145,9 @@ ipcMain.handle('pathfinder:run', async (event, { worldExport, pythonPath = 'pyth
 
     // Collect stderr
     pythonProcess.stderr.on('data', (data) => {
-      stderrData += data.toString();
+      const msg = data.toString();
+      console.error('[PathFinder stderr]', msg);
+      stderrData += msg;
     });
 
     // Wait for process to complete
@@ -157,22 +160,29 @@ ipcMain.handle('pathfinder:run', async (event, { worldExport, pythonPath = 'pyth
       });
 
       // Send world export via stdin
-      pythonProcess.stdin.write(JSON.stringify(worldExport) + '\n');
+      const jsonInput = JSON.stringify(worldExport);
+      console.log('[PathFinder] Sending input:', jsonInput);
+      pythonProcess.stdin.write(jsonInput + '\n');
       pythonProcess.stdin.end();
 
-      // Timeout after 30 seconds
+      // Timeout after 60 seconds
       setTimeout(() => {
         pythonProcess.kill();
         reject(new Error('PathFinder process timed out'));
-      }, 30000);
+      }, 60000);
     });
 
+    console.log('[PathFinder] Process exited with code', exitCode);
+    console.log('[PathFinder] Events:', events);
+    console.log('[PathFinder] Stderr:', stderrData);
+    
     return {
       success: exitCode === 0,
       events,
       stdout: stdoutData,
       stderr: stderrData,
       exitCode,
+      error: exitCode !== 0 ? (stderrData || 'PathFinder process failed') : undefined,
     };
   } catch (error) {
     return {
@@ -204,4 +214,104 @@ ipcMain.handle('app:getPaths', async () => {
     projectRoot: path.join(__dirname, '..'),
     pathFinder: path.join(__dirname, '..', 'PathFinder'),
   };
+});
+
+
+// ==============================================================================
+// Serial Port IPC (Pi connection)
+// ==============================================================================
+let SerialPortLib = null; // { SerialPort, Parsers }
+let serialPort = null;
+let readlineParser = null;
+
+async function ensureSerialLib() {
+  if (SerialPortLib) return true;
+  try {
+    const spMod = await import('serialport');
+    const SerialPort = (spMod && (spMod.SerialPort || spMod.default || spMod));
+    const parserMod = await import('@serialport/parser-readline');
+    const Readline = (parserMod && (parserMod.ReadlineParser || parserMod.default || parserMod));
+    SerialPortLib = { SerialPort, Parsers: { Readline } };
+    return true;
+  } catch (e) {
+    console.warn('[Serial] serialport not available:', e && (e.message || String(e)));
+    return false;
+  }
+}
+
+function broadcastStatus(win, status) {
+  try { win.webContents.send('serial:status', status); } catch {}
+}
+function broadcastLine(win, line) {
+  try { win.webContents.send('serial:line', line); } catch {}
+}
+
+ipcMain.handle('serial:listPorts', async () => {
+  if (!(await ensureSerialLib())) return { success: false, error: 'serialport not installed' };
+  try {
+    const ports = await SerialPortLib.SerialPort.list();
+    return { success: true, ports };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+});
+
+ipcMain.handle('serial:open', async (event, { port, baud }) => {
+  const win = BrowserWindow.getFocusedWindow() || mainWindow;
+  if (!(await ensureSerialLib())) {
+    broadcastStatus(win, { connected: false, error: 'serialport not installed' });
+    return { success: false, error: 'serialport not installed' };
+  }
+  try {
+    if (serialPort) {
+      try { serialPort.close(); } catch {}
+      serialPort = null;
+    }
+    serialPort = new SerialPortLib.SerialPort({ path: port, baudRate: Number(baud) || 9600, autoOpen: true });
+    // Attach parser
+    const ParserCtor = SerialPortLib.Parsers?.Readline || SerialPortLib.Parsers?.ReadlineParser;
+    readlineParser = new ParserCtor({ delimiter: '\n' });
+    serialPort.pipe(readlineParser);
+
+    serialPort.on('open', () => broadcastStatus(win, { connected: true, port, baud }));
+    serialPort.on('error', (err) => broadcastStatus(win, { connected: false, error: err?.message || String(err) }));
+    serialPort.on('close', () => broadcastStatus(win, { connected: false }));
+
+    readlineParser.on('data', (line) => {
+      const lineStr = String(line).trim();
+      console.log('[ELECTRON] [RX] Received:', lineStr);
+      broadcastLine(win, lineStr);
+    });
+
+    return { success: true };
+  } catch (e) {
+    broadcastStatus(win, { connected: false, error: e?.message || String(e) });
+    return { success: false, error: e?.message || String(e) };
+  }
+});
+
+ipcMain.handle('serial:close', async () => {
+  try {
+    if (serialPort) {
+      await new Promise((res) => serialPort.close(() => res(null)));
+    }
+    serialPort = null;
+    readlineParser = null;
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e?.message || String(e) };
+  }
+});
+
+ipcMain.handle('serial:writeLine', async (event, { data }) => {
+  if (!serialPort) return { success: false, error: 'not connected' };
+  try {
+    const line = typeof data === 'string' ? data : JSON.stringify(data);
+    console.log('[ELECTRON] [TX] Sending:', line.trim());
+    await new Promise((res, rej) => serialPort.write(line.endsWith('\n') ? line : line + '\n', (err) => err ? rej(err) : res(null)));
+    return { success: true };
+  } catch (e) {
+    console.error('[ELECTRON] [TX] Write error:', e?.message || String(e));
+    return { success: false, error: e?.message || String(e) };
+  }
 });

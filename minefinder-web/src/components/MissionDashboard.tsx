@@ -16,6 +16,7 @@
  */
 
 import type { Mission } from '../types/mission.types';
+import { useTelemetryStore } from '../stores/telemetryStore';
 
 /**
  * Component properties for mission monitoring and control
@@ -37,17 +38,23 @@ export function MissionDashboard({
   onAbort,
   onExportPathFinder,
 }: MissionDashboardProps) {
+  const tel = useTelemetryStore();
+  
+  // Get selected attachment and algorithm names
+  const selectedAttachment = tel.attachments.find(a => a.id === tel.selectedAttachmentId);
+  const selectedAlgorithm = selectedAttachment?.algorithms.find(alg => alg.id === tel.selectedAlgorithmId);
+  
   if (!mission) {
     return (
       <div
         className="mission-dashboard"
         style={{
           padding: '16px',
-          backgroundColor: '#2a2a2a',
+          backgroundColor: 'var(--color-background-hover)',
           borderRadius: '4px',
         }}
       >
-        <div style={{ color: '#666', fontStyle: 'italic', textAlign: 'center' }}>
+        <div style={{ color: 'var(--color-text-disabled)', fontStyle: 'italic', textAlign: 'center' }}>
           No active mission
         </div>
       </div>
@@ -82,7 +89,7 @@ export function MissionDashboard({
       className="mission-dashboard"
       style={{
         padding: '16px',
-        backgroundColor: '#2a2a2a',
+        backgroundColor: 'var(--color-background-hover)',
         borderRadius: '4px',
       }}
     >
@@ -104,12 +111,41 @@ export function MissionDashboard({
 
       {/* Mission details */}
       <div style={{ marginBottom: '16px' }}>
-        <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
+        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
           Mission ID: {mission.mission_id}
         </div>
-        <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
+        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
           Created: {formatTimestamp(mission.created_at)}
         </div>
+        
+        {/* Attachment and Algorithm Info */}
+        {(selectedAttachment || selectedAlgorithm) && (
+          <div style={{ 
+            marginTop: '8px', 
+            padding: '8px', 
+            backgroundColor: 'var(--color-background-elevated)', 
+            borderRadius: '4px',
+            fontSize: '12px'
+          }}>
+            {selectedAttachment && (
+              <div style={{ marginBottom: '4px' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Attachment: </span>
+                <span style={{ fontWeight: 'bold', color: 'var(--color-text)' }}>
+                  {selectedAttachment.name}
+                  {selectedAttachment.id === 'simulation' && ' 🎮'}
+                </span>
+              </div>
+            )}
+            {selectedAlgorithm && (
+              <div>
+                <span style={{ color: 'var(--color-text-muted)' }}>Algorithm: </span>
+                <span style={{ fontWeight: 'bold', color: 'var(--color-text)' }}>
+                  {selectedAlgorithm.name || selectedAlgorithm.id}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         <div
           style={{
@@ -119,37 +155,35 @@ export function MissionDashboard({
             marginTop: '12px',
           }}
         >
-          <div style={{ backgroundColor: '#1a1a1a', padding: '12px', borderRadius: '4px' }}>
-            <div style={{ color: '#0f0', fontWeight: 'bold', marginBottom: '4px' }}>
+          <div style={{ backgroundColor: 'var(--color-background-elevated)', padding: '12px', borderRadius: '4px' }}>
+            <div style={{ color: 'var(--color-success)', fontWeight: 'bold', marginBottom: '4px' }}>
               Start (A)
             </div>
-            <div style={{ fontSize: '12px', color: '#ccc' }}>
-              ({mission.start.x_cm}cm, {mission.start.y_cm}cm)
-            </div>
-            <div style={{ fontSize: '12px', color: '#999' }}>
-              ({mission.start.x_m.toFixed(2)}m, {mission.start.y_m.toFixed(2)}m)
+            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+              {mission.start.gps
+                ? `GPS: ${mission.start.gps.latitude.toFixed(6)}, ${mission.start.gps.longitude.toFixed(6)}`
+                : 'GPS: —'}
             </div>
           </div>
 
-          <div style={{ backgroundColor: '#1a1a1a', padding: '12px', borderRadius: '4px' }}>
-            <div style={{ color: '#06f', fontWeight: 'bold', marginBottom: '4px' }}>
+          <div style={{ backgroundColor: 'var(--color-background-elevated)', padding: '12px', borderRadius: '4px' }}>
+            <div style={{ color: 'var(--color-info)', fontWeight: 'bold', marginBottom: '4px' }}>
               Goal (B)
             </div>
-            <div style={{ fontSize: '12px', color: '#ccc' }}>
-              ({mission.goal.x_cm}cm, {mission.goal.y_cm}cm)
-            </div>
-            <div style={{ fontSize: '12px', color: '#999' }}>
-              ({mission.goal.x_m.toFixed(2)}m, {mission.goal.y_m.toFixed(2)}m)
+            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+              {mission.goal.gps
+                ? `GPS: ${mission.goal.gps.latitude.toFixed(6)}, ${mission.goal.gps.longitude.toFixed(6)}`
+                : 'GPS: —'}
             </div>
           </div>
         </div>
       </div>
 
       {/* Detection statistics */}
-      <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+      <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: 'var(--color-background-elevated)', borderRadius: '4px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ color: '#ccc' }}>Detections:</span>
-          <span style={{ fontWeight: 'bold', color: detectionCount > 0 ? '#f00' : '#0f0' }}>
+          <span style={{ color: 'var(--color-text-secondary)' }}>Detections:</span>
+          <span style={{ fontWeight: 'bold', color: detectionCount > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
             {detectionCount}
           </span>
         </div>
@@ -174,23 +208,6 @@ export function MissionDashboard({
           </button>
         )}
 
-        {mission.status === 'active' && onComplete && (
-          <button
-            onClick={onComplete}
-            style={{
-              flex: 1,
-              padding: '10px',
-              backgroundColor: '#06a',
-              border: '2px solid #06f',
-              color: '#fff',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-            }}
-          >
-            Complete
-          </button>
-        )}
-
         {mission.status === 'active' && onAbort && (
           <button
             onClick={onAbort}
@@ -205,6 +222,23 @@ export function MissionDashboard({
             }}
           >
             Abort
+          </button>
+        )}
+
+        {mission.status === 'completed' && onComplete && (
+          <button
+            onClick={onComplete}
+            style={{
+              flex: 1,
+              padding: '10px',
+              backgroundColor: '#0a0',
+              border: '2px solid #0f0',
+              color: '#fff',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+            }}
+          >
+            Save Mission
           </button>
         )}
 
